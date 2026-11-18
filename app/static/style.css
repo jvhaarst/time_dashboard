@@ -9,6 +9,10 @@
   --rule: #e0ded8;
   --accent: #0b5f8a;
   --code-bg: #f1efe9;
+  /* Two greys for the leading-zero bands. Far enough apart to count, close enough that
+     neither reads as a highlight. */
+  --zero-a: #a8a69c;
+  --zero-b: #c9c7bd;
   --ok-bg: #e6f3e6;
   --ok-fg: #1d5c23;
   --bad-bg: #f8e6e4;
@@ -23,6 +27,8 @@
     --rule: #2c2f34;
     --accent: #6cb6e0;
     --code-bg: #1e2126;
+    --zero-a: #6a6e75;
+    --zero-b: #474b51;
     --ok-bg: #16301a;
     --ok-fg: #8fd398;
     --bad-bg: #351c1a;
@@ -357,3 +363,13 @@ section.use h2 { border-bottom: 0; margin-bottom: .2rem; }
 }
 .pill.ok  { background: var(--ok-bg);  color: var(--ok-fg); }
 .pill.bad { background: var(--bad-bg); color: var(--bad-fg); }
+
+/* ---------- leading-zero bands ---------- */
+
+/* 0.0000007203 and 0.000007203 differ by one glyph inside a run of identical ones, and
+   no amount of monospacing makes that visible. Banding the zeros two at a time turns
+   counting into pattern matching, and leaves the significant digits as the only
+   full-contrast part of the figure. Grey on grey, never a colour: this is a reading
+   aid, and colour on this page already means good or bad. */
+.z0 { color: var(--zero-a); }
+.z1 { color: var(--zero-b); }

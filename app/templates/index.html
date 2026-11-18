@@ -42,12 +42,12 @@
     <section class="tiles">
       <div class="tile">
         <div class="tile-label">PPS offset</div>
-        <div class="tile-value">{{ pps_offset }}</div>
+        <div class="tile-value">{{ fmt_offset(pps_seconds) }}</div>
         <div class="tile-note">{% if pps_sd is not none %}&sigma; 1h {{ fmt_magnitude(pps_sd) }}{% else %}the reference pulse{% endif %}</div>
       </div>
       <div class="tile">
         <div class="tile-label">System clock</div>
-        <div class="tile-value" id="tile-offset">{{ offset }}</div>
+        <div class="tile-value" id="tile-offset">{{ fmt_offset(offset_seconds) }}</div>
         <div class="tile-note">{% if sys_sd is not none %}&sigma; 1h {{ fmt_magnitude(sys_sd) }}{% else %}vs the reference{% endif %}</div>
       </div>
       <div class="tile">
@@ -274,17 +274,17 @@
         <tr><th>Reference</th>
             <td>{{ reference }}{% if reference_refid %} <span class="dim">(refid {{ reference_refid }})</span>{% endif %}</td>
             <td class="what">PPS is the receiver's pulse-per-second output, the signal that makes stratum 1 worth having.</td></tr>
-        <tr><th>Current offset</th><td class="num" id="offset">{{ offset }}</td>
+        <tr><th>Current offset</th><td class="num" id="offset">{{ fmt_offset(offset_seconds) }}</td>
             <td class="what">How far the system clock sat from the reference at the last update.</td></tr>
-        <tr><th>RMS offset</th><td class="num" id="rms">{{ rms_offset }}</td>
+        <tr><th>RMS offset</th><td class="num" id="rms">{{ fmt_offset(rms_seconds) }}</td>
             <td class="what">The long-run average of that error, which is the honest figure to quote.</td></tr>
-        <tr><th>Root dispersion</th><td class="num">{{ root_dispersion }}</td>
+        <tr><th>Root dispersion</th><td class="num">{{ fmt_offset(root_dispersion_seconds) }}</td>
             <td class="what">The server's own estimate of its maximum error, and what it advertises to clients.</td></tr>
-        <tr><th>Root delay</th><td class="num">{{ root_delay }}</td>
+        <tr><th>Root delay</th><td class="num">{{ fmt_offset(root_delay_seconds) }}</td>
             <td class="what">Round-trip delay to the reference. Near zero because the reference is attached, not remote.</td></tr>
-        <tr><th>PPS offset</th><td class="num">{{ pps_offset }}</td>
+        <tr><th>PPS offset</th><td class="num">{{ fmt_offset(pps_seconds) }}</td>
             <td class="what">The pulse itself. This is the number that sets the server's accuracy.</td></tr>
-        <tr><th>NMEA offset</th><td class="num">{{ gps_offset }}</td>
+        <tr><th>NMEA offset</th><td class="num">{{ fmt_offset(gps_seconds) }}</td>
             <td class="what">The serial time message, tens of milliseconds out by nature. It only has to name the right second; the pulse does the rest.</td></tr>
         <tr><th>Frequency</th><td class="num">{{ '%.3f'|format(frequency_ppm) if frequency_ppm is not none else 'unknown' }} ppm</td>
             <td class="what">How fast the oscillator runs on its own. A constant value here is a healthy crystal.</td></tr>
@@ -417,6 +417,19 @@
 
   // Plain decimal seconds, four significant figures, never an exponent -- the same
   // rule the server-rendered figures follow, so the two cannot disagree in style.
+  // The same leading-zero banding the server does, so a figure refreshed in place does
+  // not quietly lose it.
+  function markZeros(text) {
+    var m = /^([+-]?0\.)(0+)(.*)$/.exec(text);
+    if (!m) { return text; }
+    var out = m[1];
+    for (var i = 0; i < m[2].length; i += 2) {
+      out += '<span class="' + ((i / 2) % 2 === 0 ? "z0" : "z1") + '">' +
+             m[2].substr(i, 2) + "</span>";
+    }
+    return out + m[3];
+  }
+
   function fmt(ms, signed) {
     var seconds = ms / 1000;
     if (seconds === 0) { return signed ? "+0 s" : "0 s"; }
@@ -454,8 +467,9 @@
       var bound = best.delay / 2;
       var inSync = Math.abs(best.offset) <= bound;
       var text = inSync
-        ? 'your device is in sync (\u00b1' + fmt(bound, false) + ')'
-        : 'your clock is ' + fmt(best.offset, true) + ' (\u00b1' + fmt(bound, false) + ')';
+        ? "your device is in sync (\u00b1" + markZeros(fmt(bound, false)) + ")"
+        : "your clock is " + markZeros(fmt(best.offset, true)) +
+          " (\u00b1" + markZeros(fmt(bound, false)) + ")";
       var klass = Math.abs(best.offset) > 1000 ? "bad" : "ok";
       check.innerHTML = dateText + ' \u00b7 <span class="pill ' + klass + '">' +
         text + '</span>';
@@ -474,9 +488,10 @@
         if (!s) { return; }
         var set = function (id, text) {
           var node = document.getElementById(id);
-          if (node && text) { node.textContent = text; }
+          if (node && text) { node.innerHTML = markZeros(text); }
         };
         set("offset", s.offset);
+        set("tile-offset", s.offset);
         set("rms", s.rms_offset);
         if (s.sats_used != null && s.sats_seen != null) {
           set("sats", s.sats_used + " used of " + s.sats_seen + " seen");

@@ -112,3 +112,48 @@ def test_uptime_never_shows_more_than_two_units():
     assert _seconds_human(720) == "12m"
     assert _seconds_human(42) == "42s"
     assert _seconds_human(-5) == "0s"
+
+
+def test_leading_zeros_are_banded_two_at_a_time_alternating():
+    """Counting six identical glyphs against seven is what the banding removes."""
+    from app.main import _mark_zeros
+
+    out = str(_mark_zeros("+0.0000007203"))
+    assert out == (
+        '+0.<span class="z0">00</span><span class="z1">00</span>'
+        '<span class="z0">00</span>7203'
+    )
+
+
+def test_a_lone_trailing_zero_gets_its_own_band():
+    from app.main import _mark_zeros
+
+    assert str(_mark_zeros("-0.03995")) == '-0.<span class="z0">0</span>3995'
+
+
+def test_numbers_without_leading_zeros_are_untouched():
+    from app.main import _mark_zeros
+
+    for text in ("+118.7", "1", "-2.5", "+6.604"):
+        assert str(_mark_zeros(text)) == text
+
+
+def test_banding_returns_markup_that_is_not_re_escaped():
+    """Markup.__add__ escapes a plain str operand, which once ate the spans."""
+    from markupsafe import Markup
+
+    from app.main import _mark_zeros
+
+    out = _mark_zeros("+0.0001")
+    assert isinstance(out, Markup)
+    assert "<span" in str(out)
+    assert "&lt;span" not in str(out)
+
+
+def test_offset_cell_bands_and_keeps_the_unit():
+    from app.main import _offset_cell, _magnitude_cell
+
+    assert str(_offset_cell(7.203e-7)).endswith(" s")
+    assert '<span class="z0">00</span>' in str(_offset_cell(7.203e-7))
+    assert str(_magnitude_cell(None)) == ""
+    assert "-" not in str(_magnitude_cell(-7.203e-7))

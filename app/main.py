@@ -10,9 +10,11 @@ from __future__ import annotations
 import logging
 import math
 import os
+import re
 import time
 
 from flask import Flask, Response, jsonify, render_template, request
+from markupsafe import Markup, escape
 
 from . import charts, history, vm
 
@@ -89,24 +91,56 @@ def _decimal_seconds(seconds: float, sign: bool = True) -> str:
 
 
 def _offset_human(seconds: float | None) -> str:
-    """A clock offset in seconds. The sign says which way the clock is out."""
+    """A clock offset in seconds, as plain text. The sign says which way it is out."""
     if seconds is None:
         return "unknown"
     return _decimal_seconds(seconds) + " s"
 
 
-def _offset_cell(seconds: float | None) -> str:
-    """The same formatting inside a table, where a blank beats the word "unknown"."""
+# A sign, "0.", then the run of zeros before the first significant digit.
+_LEADING_ZEROS = re.compile(r"^(?P<head>[+-]?0\.)(?P<zeros>0+)(?P<rest>.*)$")
+
+
+def _mark_zeros(text: str) -> Markup:
+    """Shade the leading zeros in pairs, alternating between two greys.
+
+    `0.0000007203` and `0.000007203` differ by one character in the middle of a run of
+    zeros, which no amount of monospacing makes visible: the eye cannot count six
+    identical glyphs against seven. Banding them two at a time turns counting into
+    pattern matching -- three bands is a microsecond, four and a half is a nanosecond --
+    and keeps the significant digits as the only full-contrast part of the number.
+
+    Grey on grey rather than a colour: the shading is a reading aid, not a status, and
+    this page already uses colour to mean "good" and "bad".
+    """
+    match = _LEADING_ZEROS.match(text)
+    if not match:
+        return Markup(escape(text))
+    zeros = match["zeros"]
+    bands = []
+    for start in range(0, len(zeros), 2):
+        band = "z0" if (start // 2) % 2 == 0 else "z1"
+        bands.append(f'<span class="{band}">{zeros[start:start + 2]}</span>')
+    # `str()` around each escape() is not decoration: Markup.__add__ ESCAPES a plain
+    # str operand, so `escape(head) + "<span ...>"` would escape the spans and the page
+    # would show the markup as text.
+    return Markup(
+        str(escape(match["head"])) + "".join(bands) + str(escape(match["rest"]))
+    )
+
+
+def _offset_cell(seconds: float | None) -> Markup:
+    """The same figure inside a table, where a blank beats the word "unknown"."""
     if seconds is None:
-        return ""
-    return _offset_human(seconds)
+        return Markup("")
+    return _mark_zeros(_decimal_seconds(seconds)) + Markup(" s")
 
 
-def _magnitude_cell(seconds: float | None) -> str:
+def _magnitude_cell(seconds: float | None) -> Markup:
     """A peak excursion, which is a size and so carries no sign."""
     if seconds is None:
-        return ""
-    return _decimal_seconds(seconds, sign=False) + " s"
+        return Markup("")
+    return _mark_zeros(_decimal_seconds(seconds, sign=False)) + Markup(" s")
 
 
 app.jinja_env.globals["fmt_magnitude"] = _magnitude_cell
@@ -138,6 +172,12 @@ def _live(samples: dict[str, list[vm.Sample]]) -> dict[str, object]:
         "rms_offset": _offset_human(
             vm.one(samples, "chrony_tracking_rms_offset_seconds")
         ),
+        "root_delay_seconds": vm.one(samples, "chrony_tracking_root_delay_seconds"),
+        "root_dispersion_seconds": vm.one(
+            samples, "chrony_tracking_root_dispersion_seconds"
+        ),
+        "pps_seconds": vm.source_offset(samples, "PPS"),
+        "gps_seconds": vm.source_offset(samples, "GPS"),
         "root_delay": _offset_human(
             vm.one(samples, "chrony_tracking_root_delay_seconds")
         ),
