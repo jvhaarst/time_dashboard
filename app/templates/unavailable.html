@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Status unavailable</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<main>
+  <header>
+    <h1>Status unavailable</h1>
+    <p class="status bad">This page cannot reach the metrics store, so it has nothing to show.</p>
+  </header>
+  <section>
+    <p>
+      The NTP server itself is a separate machine and is almost certainly still
+      answering: this page only reports on it. Point a client at it and see.
+    </p>
+    <p class="note">{{ reason }}</p>
+  </section>
+</main>
+</body>
+</html>

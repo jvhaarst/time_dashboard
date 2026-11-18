@@ -1,0 +1,26 @@
+[project]
+name = "time-dashboard"
+version = "0.1.0"
+description = "Public status page for the stratum-1 NTP server at time.vanhaarst.net"
+requires-python = ">=3.13"
+dependencies = [
+    "flask>=3.1.0",
+    "requests>=2.32.0",
+    "gunicorn>=23.0.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.0",
+]
+
+# Not a distributable package: the image copies `app/` in and runs it from the working
+# directory, so there is nothing to build or install. Without this, `uv sync` would want
+# a build backend for a thing that is never published.
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# `app` is a plain directory in the project root, not an installed package.
+pythonpath = ["."]

@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ server_name }} &mdash; stratum-1 NTP server</title>
+<meta name="description" content="Status of {{ server_name }}, a GPS-disciplined stratum-1 NTP server in {{ server_location }}.">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<main>
+
+  <header>
+    <h1>{{ server_name }}</h1>
+    <p class="sub">A GPS-disciplined <strong>stratum-1</strong> NTP server in {{ server_location }}.</p>
+    <p class="status {{ 'ok' if healthy else 'bad' }}">
+      {%- if healthy %}
+        Serving time &mdash; stratum {{ stratum|int }}, locked to {{ reference }}
+      {%- elif not chrony_up %}
+        chronyd is not answering its exporter: the figures below are the last ones recorded
+      {%- else %}
+        Degraded &mdash; stratum {{ stratum|int if stratum is not none else '?' }}, not locked to a local reference
+      {%- endif %}
+    </p>
+  </header>
+
+  <section>
+    <h2>Use it</h2>
+    <p>Point your client at <code>{{ server_name }}</code>. It answers NTPv4 over both IPv4 and IPv6.</p>
+
+    <h3>chrony &mdash; <code>/etc/chrony/chrony.conf</code></h3>
+    <pre><code>server {{ server_name }} iburst</code></pre>
+
+    <h3>ntpd &mdash; <code>/etc/ntp.conf</code></h3>
+    <pre><code>server {{ server_name }} iburst</code></pre>
+
+    <h3>systemd-timesyncd &mdash; <code>/etc/systemd/timesyncd.conf</code></h3>
+    <pre><code>[Time]
+NTP={{ server_name }}</code></pre>
+
+    <h3>macOS</h3>
+    <pre><code>sudo sntp -sS {{ server_name }}</code></pre>
+
+    <h3>Windows</h3>
+    <pre><code>w32tm /config /manualpeerlist:"{{ server_name }}" /syncfromflags:manual /update</code></pre>
+
+    <p class="note">
+      One server is one opinion. For anything that matters, give your client three or
+      four sources so it can outvote a liar: a public pool plus this one is a good mix.
+    </p>
+  </section>
+
+  <section>
+    <h2>The clock right now</h2>
+    <table>
+      <tbody>
+        <tr><th>Stratum</th><td>{{ stratum|int if stratum is not none else 'unknown' }}</td>
+            <td class="what">1 means it is disciplined by a local reference, not by another server over the network.</td></tr>
+        <tr><th>Reference</th>
+            <td>{{ reference }}{% if reference_refid %} <span class="dim">(refid {{ reference_refid }})</span>{% endif %}</td>
+            <td class="what">PPS is the receiver's pulse-per-second output, the signal that makes stratum 1 worth having.</td></tr>
+        <tr><th>Current offset</th><td class="num">{{ offset }}</td>
+            <td class="what">How far the system clock sat from the reference at the last update.</td></tr>
+        <tr><th>RMS offset</th><td class="num">{{ rms_offset }}</td>
+            <td class="what">The long-run average of that error, which is the honest figure to quote.</td></tr>
+        <tr><th>Root dispersion</th><td class="num">{{ root_dispersion }}</td>
+            <td class="what">The server's own estimate of its maximum error, and what it advertises to clients.</td></tr>
+        <tr><th>Root delay</th><td class="num">{{ root_delay }}</td>
+            <td class="what">Round-trip delay to the reference. Near zero because the reference is attached, not remote.</td></tr>
+        <tr><th>Frequency</th><td class="num">{{ '%.3f'|format(frequency_ppm) if frequency_ppm is not none else 'unknown' }} ppm</td>
+            <td class="what">How fast the oscillator runs on its own. A constant value here is a healthy crystal.</td></tr>
+        <tr><th>Skew</th><td class="num">{{ '%.3f'|format(skew_ppm) if skew_ppm is not none else 'unknown' }} ppm</td>
+            <td class="what">Uncertainty in that frequency estimate.</td></tr>
+        <tr><th>Update interval</th><td class="num">{{ '%.0f'|format(update_interval) if update_interval is not none else 'unknown' }} s</td>
+            <td class="what">How often chronyd currently corrects the clock.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>The reference</h2>
+    <table>
+      <tbody>
+        <tr><th>PPS offset</th><td class="num">{{ pps_offset }}</td>
+            <td class="what">The pulse itself. This is the number that sets the server's accuracy.</td></tr>
+        <tr><th>NMEA offset</th><td class="num">{{ gps_offset }}</td>
+            <td class="what">The serial time message, tens of milliseconds out by nature. It only has to name the right second; the pulse does the rest.</td></tr>
+        <tr><th>GNSS fix</th><td>{{ fix_mode }}</td><td class="what">A 3D fix is needed for the position solution the timing depends on.</td></tr>
+        <tr><th>Satellites</th>
+            <td class="num">{{ sats_used|int if sats_used is not none else '?' }} used of {{ sats_seen|int if sats_seen is not none else '?' }} seen</td>
+            <td class="what">Across every constellation the receiver tracks.</td></tr>
+      </tbody>
+    </table>
+
+    {% if constellations %}
+    <table class="compact">
+      <thead><tr><th>Constellation</th><th class="num">Used</th><th class="num">Seen</th></tr></thead>
+      <tbody>
+        {% for c in constellations %}
+        <tr><th>{{ c.name }}</th><td class="num">{{ c.used }}</td><td class="num">{{ c.seen }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </section>
+
+  <section>
+    <h2>What it serves</h2>
+    <table>
+      <tbody>
+        <tr><th>Requests answered</th>
+            <td class="num">{{ '{:,}'.format(packets_received|int) if packets_received is not none else 'unknown' }}</td>
+            <td class="what">Since chronyd last started.</td></tr>
+        <tr><th>Requests dropped</th>
+            <td class="num">{{ '{:,}'.format(packets_dropped|int) if packets_dropped is not none else 'unknown' }}</td>
+            <td class="what">Rate limiting and malformed packets.</td></tr>
+        <tr><th>Current rate</th>
+            <td class="num">{{ '%.1f'|format(packets_per_second) if packets_per_second is not none else 'unknown' }} /s</td>
+            <td class="what">Averaged over the last five minutes.</td></tr>
+        {% for window, count in clients %}
+        <tr><th>Clients, last {{ window }}</th><td class="num">{{ '{:,}'.format(count|int) }}</td>
+            <td class="what">{% if loop.first %}Distinct addresses that asked. This is demand.{% endif %}</td></tr>
+        {% endfor %}
+        {% if client_countries is not none %}
+        <tr><th>Countries</th><td class="num">{{ client_countries|int }}</td>
+            <td class="what">Resolved from client addresses by a local GeoIP database.</td></tr>
+        {% endif %}
+        {% if client_log_entries is not none %}
+        <tr><th>Client log</th><td class="num">{{ '{:,}'.format(client_log_entries|int) }} entries</td>
+            <td class="what">Every address chronyd has ever answered, until <code>clientloglimit</code> evicts the oldest. A saturation indicator, <em>not</em> a client count.</td></tr>
+        {% endif %}
+        <tr><th>Uptime</th><td class="num">{{ uptime }}</td><td class="what">Of the host, not of chronyd.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>The machine</h2>
+    <p>{{ server_hardware }}.</p>
+    <p>
+      The receiver's pulse-per-second output drives the clock; the NMEA sentences over
+      the serial line only label the second. chronyd disciplines the system clock from
+      the pulse and cross-checks it against public servers, which is why stratum 1 here
+      means an attached reference rather than a claim about the network.
+    </p>
+    {% if pool_url %}
+    <p>It is a member of the <a href="{{ pool_url }}">NTP Pool</a>.</p>
+    {% endif %}
+  </section>
+
+  <footer>
+    <p>
+      Rendered {{ generated }} from a VictoriaMetrics store that keeps a year of this
+      server's clock data. Figures refresh every 30&nbsp;seconds at the source.
+    </p>
+  </footer>
+
+</main>
+</body>
+</html>
