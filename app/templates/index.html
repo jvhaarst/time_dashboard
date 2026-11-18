@@ -108,10 +108,8 @@
       a magnitude. &ldquo;Locked&rdquo; is the fraction of the window at stratum 1,
       sampled every five minutes.
     </p>
-  </section>
 
-  <section>
-    <h2>Compared to other NTP servers</h2>
+    <h3>Compared to other NTP servers</h3>
     {{ peers_chart|safe }}
     {{ peers_legend|safe }}
     <p class="note">
@@ -119,10 +117,8 @@
       source is ahead of this clock. It includes network path asymmetry, so a steady
       millisecond offset says more about the path than about either clock.
     </p>
-  </section>
 
-  <section>
-    <h2>NTP sources</h2>
+    <h3>NTP sources</h3>
     <!-- Eight columns of numbers only mean anything side by side, so on a narrow screen
          this one table scrolls rather than reflowing into stacked rows. -->
     <div class="sources-scroll">
