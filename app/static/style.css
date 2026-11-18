@@ -168,6 +168,19 @@ footer {
 }
 .clock-zone { font-size: .4em; color: var(--dim); letter-spacing: 0; }
 
+/* The viewer's own time, beside UTC rather than instead of it: this is a time server's
+   page, so UTC stays the headline. Wraps to its own line on a narrow screen, where the
+   zone name is long and the big digits are already most of the width. */
+.clock-local {
+  font-size: .32em;
+  color: var(--dim);
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+@media (max-width: 34rem) {
+  .clock-local { display: block; font-size: .36em; margin-top: .2em; }
+}
+
 /* ---------- range switcher ---------- */
 
 /* Links, not buttons: each range is a real URL that renders server-side, so the

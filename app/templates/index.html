@@ -29,6 +29,10 @@
 
     <div class="clock">
       <span id="clock">{{ clock_initial }}</span> <span class="clock-zone">UTC</span>
+      <!-- Filled in by the script: the same instant in the viewer's own zone. Empty
+           without JavaScript, and empty for a viewer already on UTC, since repeating
+           the figure would say nothing. -->
+      <span class="clock-local" id="clock-local" hidden></span>
     </div>
     <p class="clock-sub" id="clock-sub">
       {{ generated_date }} &middot;
@@ -367,6 +371,7 @@
   "use strict";
   var el = document.getElementById("clock");
   var check = document.getElementById("clock-sub");
+  var local = document.getElementById("clock-local");
 
   // Measured offset of this browser's clock against the server, in milliseconds. The
   // displayed clock is corrected by it, so the big digits are the SERVER's time rather
@@ -374,9 +379,37 @@
   var offsetMs = 0;
 
   function pad(n) { return n < 10 ? "0" + n : "" + n; }
+  // The viewer's own zone, as an IANA name. resolvedOptions() is how a browser
+  // reports it; there is no other reliable source, and guessing from the UTC offset
+  // cannot tell Europe/Amsterdam from Africa/Lagos in winter.
+  var localZone = "";
+  try {
+    localZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+  } catch (e) { /* ancient browser: the local line is simply not shown */ }
+
+  // A viewer already on UTC gets no second clock: it would be the same digits twice.
+  // The comparison is of the ZONE, not of today's offset -- Europe/London is UTC+0
+  // right now and will not be in March, and the page should not have to be reloaded
+  // in spring to start showing a local time.
+  var showLocal = localZone !== "" && localZone !== "UTC" && localZone !== "Etc/UTC";
+
+  function localTime(d) {
+    try {
+      return d.toLocaleTimeString("en-GB", { hour12: false, timeZone: localZone });
+    } catch (e) {
+      return pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds());
+    }
+  }
+
   function tick() {
+    // Both clocks come from the SAME corrected instant, so the local one shows what
+    // the time really is where the viewer is, not what their own clock believes.
     var d = new Date(Date.now() + offsetMs);
     el.textContent = pad(d.getUTCHours()) + ":" + pad(d.getUTCMinutes()) + ":" + pad(d.getUTCSeconds());
+    if (showLocal && local) {
+      local.textContent = localTime(d) + " " + localZone.replace(/_/g, " ");
+      local.hidden = false;
+    }
   }
   tick();
   setInterval(tick, 1000);
