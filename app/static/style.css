@@ -299,17 +299,29 @@ ul.snippets code { white-space: pre-wrap; overflow-wrap: anywhere; }
   border-radius: 8px;
   padding: .6rem .75rem .65rem;
   background: var(--bg);
+  /* So the value below can be sized from THIS box rather than from the viewport. */
+  container-type: inline-size;
 }
 .tile-label { color: var(--dim); font-size: .8rem; }
 .tile-value {
   font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
   font-variant-numeric: tabular-nums;
-  /* Shrinks with the column: a decimal-seconds offset is up to 15 characters and must
-     not break out of its tile. */
-  font-size: clamp(.95rem, 2.4vw, 1.4rem);
   line-height: 1.25;
   margin: .1rem 0 .15rem;
+  /* Last-resort safety net. It should never trigger now that the size follows the
+     tile, but a value breaking onto a second line beats one leaving the box. */
   overflow-wrap: anywhere;
+  /* Fallback for browsers without container queries. */
+  font-size: 1rem;
+}
+
+/* A decimal-seconds offset is up to 15 characters -- "-0.0000005844 s" -- and the tiles
+   stay about 200px wide whatever the window does, because the page itself is capped at
+   54rem. Sizing the value with `vw` therefore grew the text on a wide screen while its
+   box stayed put, and the number wrapped onto a second line. `cqw` is a percentage of
+   the TILE, so the longest value fits at every width. */
+@supports (font-size: 1cqw) {
+  .tile-value { font-size: clamp(.85rem, 8.5cqw, 1.3rem); }
 }
 .tile-note { color: var(--dim); font-size: .78rem; }
 

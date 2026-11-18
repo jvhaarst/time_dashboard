@@ -390,7 +390,10 @@
   // what chrony and ntpd do: a long round trip is nearly always one-sided queueing,
   // and an asymmetric path biases the offset by half the asymmetry. The best sample is
   // the least biased one, not the average.
-  var dateText = new Date().toLocaleDateString(undefined, {
+  // "en-GB", not the visitor's locale: the rest of the page is in English, and a Dutch
+  // browser rendering "woensdag 18 november 2026" next to "Locked to PPS" reads as a
+  // bug. It also matches the server-rendered fallback, which strftime writes in C.
+  var dateText = new Date().toLocaleDateString("en-GB", {
     weekday: "long", year: "numeric", month: "long", day: "numeric"
   });
 
