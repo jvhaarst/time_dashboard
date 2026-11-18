@@ -44,18 +44,13 @@
       IPv6{% if pool_url %}, and is part of the <a href="{{ pool_url }}">global NTP pool</a>{% endif %}.
     </p>
 
-    <dl class="snippets">
-      <dt>chrony</dt>
-      <dd><code>server {{ server_name }} iburst</code> in <code>/etc/chrony/chrony.conf</code></dd>
-      <dt>ntpd</dt>
-      <dd><code>server {{ server_name }} iburst</code> in <code>/etc/ntp.conf</code></dd>
-      <dt>systemd-timesyncd</dt>
-      <dd><code>NTP={{ server_name }}</code> in <code>/etc/systemd/timesyncd.conf</code></dd>
-      <dt>macOS</dt>
-      <dd>System Settings &rsaquo; General &rsaquo; Date &amp; Time &rsaquo; Source, or <code>sudo sntp -sS {{ server_name }}</code></dd>
-      <dt>Windows</dt>
-      <dd><code>w32tm /config /manualpeerlist:"{{ server_name }}" /syncfromflags:manual /update</code></dd>
-    </dl>
+    <ul class="snippets">
+      <li><b>chrony:</b> <code>server {{ server_name }} iburst</code> in <code>/etc/chrony/chrony.conf</code></li>
+      <li><b>ntpd:</b> <code>server {{ server_name }} iburst</code> in <code>/etc/ntp.conf</code></li>
+      <li><b>systemd-timesyncd:</b> <code>NTP={{ server_name }}</code> in <code>/etc/systemd/timesyncd.conf</code></li>
+      <li><b>macOS:</b> System Settings &rsaquo; General &rsaquo; Date &amp; Time &rsaquo; Source, or <code>sudo sntp -sS {{ server_name }}</code></li>
+      <li><b>Windows:</b> <code>w32tm /config /manualpeerlist:"{{ server_name }}" /syncfromflags:manual /update</code></li>
+    </ul>
 
     <p class="note">
       One server is one opinion. For anything that matters, give your client three or

@@ -253,9 +253,16 @@ tr.state-falseticker td, tr.state-unreach td { color: var(--dim); }
 
 /* ---------- config snippets ---------- */
 
-dl.snippets { margin: .5rem 0 1rem; }
-dl.snippets dt { color: var(--dim); font-size: .82rem; font-weight: 600; margin-top: .6rem; }
-dl.snippets dd { margin: .15rem 0 0; }
+/* One line per client, label inline: a block per entry with its own <pre> turned five
+   short facts into most of a screen. */
+ul.snippets { margin: .5rem 0 1rem; padding-left: 1.1rem; }
+ul.snippets li { margin: .2rem 0; }
+ul.snippets b { font-weight: 600; }
+/* `nowrap` here pushed the w32tm command off the right edge of the page; it is 78
+   characters and nothing makes it fit. pre-wrap keeps the spacing inside the command
+   while letting it break, and `anywhere` lets a break fall inside a long path rather
+   than overflowing. */
+ul.snippets code { white-space: pre-wrap; overflow-wrap: anywhere; }
 
 @media (max-width: 42rem) {
   /* The sources table is the one table that must stay a table: eight columns of
