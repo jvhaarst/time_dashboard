@@ -163,8 +163,11 @@ def test_window_stats_peak_is_the_larger_magnitude_either_side_of_zero(monkeypat
 def test_window_stats_returns_a_row_per_window_even_with_no_data(monkeypatch):
     monkeypatch.setattr(history.vm, "query", lambda expr: [])
     rows = history.window_stats()
-    assert [r["window"] for r in rows] == list(history.STAT_WINDOWS)
-    assert all(r["peak"] is None and r["mean"] is None for r in rows)
+    # Plus the "tile" pseudo-window, which carries the two one-hour spreads the tiles
+    # above the fold quote and has no mean or peak of its own.
+    assert [r["window"] for r in rows] == list(history.STAT_WINDOWS) + ["tile"]
+    windows = [r for r in rows if r["window"] != "tile"]
+    assert all(r["peak"] is None and r["mean"] is None for r in windows)
 
 
 def test_window_stats_peak_survives_a_missing_half(monkeypatch):
@@ -178,8 +181,10 @@ def test_window_stats_peak_survives_a_missing_half(monkeypatch):
 def test_stats_query_labels_every_term_so_the_union_keeps_them_all():
     """`or` matches on the full label set; without label_set only the first survives."""
     q = history._stats_query()
-    assert q.count("label_set(") == len(history.STAT_WINDOWS) * 6
-    assert q.count(" or ") == len(history.STAT_WINDOWS) * 6 - 1
+    # Six terms per window, plus the two one-hour spreads for the tiles.
+    expected = len(history.STAT_WINDOWS) * 6 + 2
+    assert q.count("label_set(") == expected
+    assert q.count(" or ") == expected - 1
 
 
 def test_stats_query_avoids_a_subquery_for_the_peak():

@@ -385,6 +385,14 @@ def _stats_query() -> str:
             f'label_set(avg_over_time((chrony_tracking_stratum == bool 1)[{win}:300]),'
             f' "stat", "avail", "win", "{win}")',
         ]
+    # The tiles above the fold quote a one-hour spread for the two offsets they show,
+    # which is the figure that says whether a number is steady or merely was when the
+    # page rendered.
+    terms += [
+        f'label_set(stddev_over_time({_OFFSET}[1h]), "stat", "sys_sd", "win", "tile")',
+        'label_set(stddev_over_time(chrony_sources_last_sample_offset_seconds'
+        '{source_name="PPS"}[1h]), "stat", "pps_sd", "win", "tile")',
+    ]
     return " or ".join(terms)
 
 
@@ -403,7 +411,7 @@ def window_stats() -> list[dict[str, object]]:
             grouped[(win, stat)] = sample.value
 
     rows = []
-    for win in STAT_WINDOWS:
+    for win in list(STAT_WINDOWS) + ["tile"]:
         hi = grouped.get((win, "max"))
         lo = grouped.get((win, "min"))
         peak = None
@@ -412,6 +420,15 @@ def window_stats() -> list[dict[str, object]]:
                 (abs(v) for v in (hi, lo) if v is not None),
                 default=None,
             )
+        if win == "tile":
+            rows.append(
+                {
+                    "window": win,
+                    "sys_sd": grouped.get((win, "sys_sd")),
+                    "pps_sd": grouped.get((win, "pps_sd")),
+                }
+            )
+            continue
         rows.append(
             {
                 "window": win,

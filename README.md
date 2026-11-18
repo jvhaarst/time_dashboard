@@ -45,7 +45,7 @@ All environment variables, all optional.
 | `VM_TIMEOUT` | `5` | Seconds per query. Keep it below the readiness probe's timeout, so a slow store makes the page late rather than the pod unready. |
 | `CACHE_SECONDS` | `15` | How long a rendered page is reused. |
 | `SERVER_NAME` | `ntp.vanhaarst.net` | The hostname the page tells clients to use. |
-| `SERVER_LOCATION` | `Wageningen, the Netherlands` | Shown in the subtitle. |
+| `SERVER_LOCATION` | `Doorwerth, the Netherlands` | Shown in the subtitle. |
 | `SERVER_HARDWARE` | a Pi with a Uputronics HAT | Shown in "The machine". |
 | `POOL_URL` | empty | If set, the page says the server is an NTP Pool member and links here. |
 | `LOG_LEVEL` | `INFO` | |

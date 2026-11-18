@@ -17,8 +17,9 @@
     <div class="clock">
       <span id="clock">{{ clock_initial }}</span> <span class="clock-zone">UTC</span>
     </div>
-    <p class="offset-check" id="offset-check">
-      <span class="dim">Server time as rendered. Enable JavaScript to compare it with your own clock.</span>
+    <p class="clock-sub" id="clock-sub">
+      {{ generated_date }} &middot;
+      <span class="dim">server time as rendered; enable JavaScript to compare it with your own clock</span>
     </p>
 
     <p class="status {{ 'ok' if healthy else 'bad' }}" id="status">
@@ -30,14 +31,57 @@
         Degraded &mdash; stratum {{ stratum|int if stratum is not none else '?' }}, no local reference selected
       {%- endif %}
     </p>
-    {% if locked_for %}
-    <p class="note">Locked without interruption for {{ locked_for }}, since {{ locked_since }}.</p>
-    {% elif calendar_days %}
-    <p class="note">Locked for the whole of the last {{ calendar_days }} days.</p>
-    {% endif %}
+
+    <!-- The figures worth seeing before scrolling. Each tile is one number, with the
+         context that makes it mean something underneath: a spread, a denominator or a
+         second reading. -->
+    <section class="tiles">
+      <div class="tile">
+        <div class="tile-label">PPS offset</div>
+        <div class="tile-value">{{ pps_offset }}</div>
+        <div class="tile-note">{% if pps_sd is not none %}&sigma; 1h {{ fmt_magnitude(pps_sd) }}{% else %}the reference pulse{% endif %}</div>
+      </div>
+      <div class="tile">
+        <div class="tile-label">System clock</div>
+        <div class="tile-value" id="tile-offset">{{ offset }}</div>
+        <div class="tile-note">{% if sys_sd is not none %}&sigma; 1h {{ fmt_magnitude(sys_sd) }}{% else %}vs the reference{% endif %}</div>
+      </div>
+      <div class="tile">
+        <div class="tile-label">Locked for</div>
+        <div class="tile-value">{{ locked_for or '&gt; ' ~ calendar_days ~ 'd' }}</div>
+        <div class="tile-note">{% if availability is not none %}{{ '%.3f'|format(availability * 100) }}% of {{ calendar_days }}d recorded{% endif %}</div>
+      </div>
+      <div class="tile">
+        <div class="tile-label">Satellites</div>
+        <div class="tile-value" id="tile-sats">{{ sats_used|int if sats_used is not none else '?' }} / {{ sats_seen|int if sats_seen is not none else '?' }}</div>
+        <div class="tile-note">{{ fix_mode }} &middot; used / tracked</div>
+      </div>
+      <div class="tile">
+        <div class="tile-label">Signal</div>
+        <div class="tile-value">{{ '%.1f'|format(mean_signal) if mean_signal is not none else '?' }} dB-Hz</div>
+        <div class="tile-note">mean C/N<sub>0</sub> of used satellites</div>
+      </div>
+      <div class="tile">
+        <div class="tile-label">Dilution</div>
+        <div class="tile-value">TDOP {{ '%.2f'|format(tdop) if tdop is not none else '?' }}</div>
+        <div class="tile-note">PDOP {{ '%.2f'|format(pdop) if pdop is not none else '?' }}</div>
+      </div>
+      <div class="tile">
+        <div class="tile-label">Stratum</div>
+        <div class="tile-value">{{ stratum|int if stratum is not none else '?' }}</div>
+        <div class="tile-note">ref {{ reference }}{% if leap_seconds is not none %} &middot; leap {{ leap_seconds|int }}s{% endif %}</div>
+      </div>
+      <div class="tile">
+        <div class="tile-label">Frequency</div>
+        <div class="tile-value">{{ '%+.3f'|format(frequency_ppm) if frequency_ppm is not none else '?' }} ppm</div>
+        <div class="tile-note">{% if temperature is not none %}SoC {{ '%.1f'|format(temperature) }} &deg;C{% endif %}</div>
+      </div>
+    </section>
+
+
   </header>
 
-  <section>
+  <section class="use">
     <h2>Use this time server</h2>
     <p>
       Point your client at <code>{{ server_name }}</code>. It answers NTPv4 over IPv4 and
@@ -318,7 +362,7 @@
 (function () {
   "use strict";
   var el = document.getElementById("clock");
-  var check = document.getElementById("offset-check");
+  var check = document.getElementById("clock-sub");
 
   // Measured offset of this browser's clock against the server, in milliseconds. The
   // displayed clock is corrected by it, so the big digits are the SERVER's time rather
@@ -346,6 +390,10 @@
   // what chrony and ntpd do: a long round trip is nearly always one-sided queueing,
   // and an asymmetric path biases the offset by half the asymmetry. The best sample is
   // the least biased one, not the average.
+  var dateText = new Date().toLocaleDateString(undefined, {
+    weekday: "long", year: "numeric", month: "long", day: "numeric"
+  });
+
   function sample() {
     var t0 = Date.now();
     return fetch("/api/time?_=" + t0, { cache: "no-store" })
@@ -360,13 +408,20 @@
       .catch(function () { return null; });
   }
 
-  function fmt(ms) {
-    var a = Math.abs(ms);
-    var sign = ms >= 0 ? "+" : "-";
-    if (a < 1) { return sign + (a * 1000).toFixed(0) + " \u00b5s"; }
-    if (a < 1000) { return sign + a.toFixed(1) + " ms"; }
-    if (a < 60000) { return sign + (a / 1000).toFixed(2) + " s"; }
-    return sign + (a / 60000).toFixed(1) + " min";
+  // Plain decimal seconds, four significant figures, never an exponent -- the same
+  // rule the server-rendered figures follow, so the two cannot disagree in style.
+  function fmt(ms, signed) {
+    var seconds = ms / 1000;
+    if (seconds === 0) { return signed ? "+0 s" : "0 s"; }
+    var magnitude = Math.abs(seconds);
+    var exponent = Math.floor(Math.log(magnitude) / Math.LN10);
+    var decimals = Math.min(12, Math.max(0, 3 - exponent));
+    var text = magnitude.toFixed(decimals);
+    if (text.indexOf(".") >= 0) {
+      text = text.replace(/0+$/, "").replace(/\.$/, "");
+    }
+    if (signed) { text = (seconds >= 0 ? "+" : "-") + text; }
+    return text + " s";
   }
 
   function measure() {
@@ -379,19 +434,24 @@
     }
     return chain.then(function () {
       if (!best) {
-        check.innerHTML = '<span class="dim">Could not reach the server to compare clocks.</span>';
+        check.innerHTML = dateText +
+          ' \u00b7 <span class="dim">could not reach the server to compare clocks</span>';
         return;
       }
       offsetMs = best.offset;
       tick();
-      // The round trip bounds the measurement: the true offset is within half of it,
-      // so quoting the offset without the uncertainty would be a false precision.
+      // The round trip bounds the measurement: the true offset is within half of it.
+      // Quoting the offset without that bound would be false precision, and calling a
+      // device out of sync when the difference is smaller than the bound would be
+      // measuring the network and blaming the clock.
       var bound = best.delay / 2;
+      var inSync = Math.abs(best.offset) <= bound;
+      var text = inSync
+        ? 'your device is in sync (\u00b1' + fmt(bound, false) + ')'
+        : 'your clock is ' + fmt(best.offset, true) + ' (\u00b1' + fmt(bound, false) + ')';
       var klass = Math.abs(best.offset) > 1000 ? "bad" : "ok";
-      check.innerHTML =
-        '<span class="pill ' + klass + '">Your clock: ' + fmt(best.offset) +
-        '</span> <span class="dim">\u00b1' + bound.toFixed(0) +
-        ' ms, measured over HTTP in ' + best.delay + ' ms round trip</span>';
+      check.innerHTML = dateText + ' \u00b7 <span class="pill ' + klass + '">' +
+        text + '</span>';
     });
   }
 

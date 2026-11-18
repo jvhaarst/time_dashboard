@@ -80,13 +80,30 @@ def test_missing_metric_is_none_not_an_exception():
     assert vm.satellites({}) == []
 
 
-def test_offset_scales_to_the_magnitude_and_keeps_the_sign():
-    assert _offset_human(6.39e-7) == "+639 ns"
-    assert _offset_human(-1.2e-9) == "-1 ns"
-    assert _offset_human(1.86e-5) == "+18.6 µs"
-    assert _offset_human(-0.03995) == "-39.95 ms"
-    assert _offset_human(2.5) == "+2.500 s"
+def test_offset_is_plain_decimal_seconds_at_every_magnitude():
+    """One unit throughout, so a column of offsets can be ranked by eye.
+
+    Scaled units read well alone and badly in a column: 639 ns, 18.6 us and -39.95 ms
+    are three scales, and a unit that changes between refreshes makes a steady figure
+    look like it jumped.
+    """
+    assert _offset_human(6.39e-7) == "+0.000000639 s"
+    assert _offset_human(-1.2e-9) == "-0.0000000012 s"
+    assert _offset_human(1.86e-5) == "+0.0000186 s"
+    assert _offset_human(-0.03995) == "-0.03995 s"
+    assert _offset_human(2.5) == "+2.5 s"
+    assert _offset_human(0.0) == "+0 s"
     assert _offset_human(None) == "unknown"
+
+
+def test_offset_never_uses_exponent_notation():
+    for value in (1e-12, 1e-9, 5e-7, 1.0, 1234.5):
+        assert "e" not in _offset_human(value).lower()
+
+
+def test_offset_keeps_four_significant_figures():
+    assert _offset_human(1.2345e-6).startswith("+0.00000123")
+    assert _offset_human(0.0399512) == "+0.03995 s"
 
 
 def test_uptime_never_shows_more_than_two_units():

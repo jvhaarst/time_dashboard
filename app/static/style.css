@@ -280,7 +280,50 @@ ul.snippets code { white-space: pre-wrap; overflow-wrap: anywhere; }
 
 /* ---------- the local offset check ---------- */
 
+.clock-sub { margin: .35rem 0 0; font-size: .9rem; }
 .offset-check { margin: .35rem 0 0; font-size: .85rem; }
+
+/* ---------- tiles ---------- */
+
+/* The figures worth seeing before scrolling. auto-fit rather than a fixed column count:
+   eight tiles become four columns on a laptop, two on a phone, without a breakpoint
+   per layout. */
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr));
+  gap: .6rem;
+  margin: 1.1rem 0 .5rem;
+}
+.tile {
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  padding: .6rem .75rem .65rem;
+  background: var(--bg);
+}
+.tile-label { color: var(--dim); font-size: .8rem; }
+.tile-value {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  /* Shrinks with the column: a decimal-seconds offset is up to 15 characters and must
+     not break out of its tile. */
+  font-size: clamp(.95rem, 2.4vw, 1.4rem);
+  line-height: 1.25;
+  margin: .1rem 0 .15rem;
+  overflow-wrap: anywhere;
+}
+.tile-note { color: var(--dim); font-size: .78rem; }
+
+/* ---------- the call to action ---------- */
+
+/* The one section a visitor came to act on, so it is the one section with a box. */
+section.use {
+  border-left: 4px solid var(--ok-fg);
+  background: var(--ok-bg);
+  border-radius: 0 8px 8px 0;
+  padding: .2rem 1rem .8rem;
+  margin-top: 1.5rem;
+}
+section.use h2 { border-bottom: 0; margin-bottom: .2rem; }
 .pill {
   display: inline-block;
   padding: .15rem .55rem;

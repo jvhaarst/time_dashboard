@@ -8,6 +8,7 @@ clock and a poll of /api/status that refreshes the live figures in place.
 from __future__ import annotations
 
 import logging
+import math
 import os
 import time
 
@@ -24,7 +25,7 @@ log = logging.getLogger(__name__)
 app = Flask(__name__)
 
 SERVER_NAME = os.environ.get("SERVER_NAME", "ntp.vanhaarst.net")
-SERVER_LOCATION = os.environ.get("SERVER_LOCATION", "Wageningen, the Netherlands")
+SERVER_LOCATION = os.environ.get("SERVER_LOCATION", "Doorwerth, the Netherlands")
 SERVER_HARDWARE = os.environ.get(
     "SERVER_HARDWARE", "Raspberry Pi with a Uputronics GPS/RTC HAT (u-blox MAX-M8Q)"
 )
@@ -61,23 +62,37 @@ def _seconds_human(seconds: float) -> str:
     return f"{seconds}s"
 
 
-def _offset_human(seconds: float | None) -> str:
-    """A clock offset at the magnitude it actually has.
+SIGNIFICANT = 4
 
-    A stratum-1 server's offsets are nanoseconds to microseconds, so a fixed unit either
-    rounds them to zero or is unreadable. The sign is kept: it says which way the clock
-    is out.
+
+def _decimal_seconds(seconds: float, sign: bool = True) -> str:
+    """A duration as plain decimal seconds, never scaled and never in exponent form.
+
+    Scaled units read well on their own but badly in a column: `639 ns`, `18.6 us` and
+    `-39.95 ms` are three different scales, so the eye cannot rank them without doing
+    arithmetic, and a unit that changes between refreshes makes a steady figure look
+    like it jumped. One unit for everything makes the magnitude the thing you see.
+
+    The decimal count follows the value, so four significant figures survive at any
+    magnitude: 0.000000639 keeps its 639, and 118.7 does not grow a tail of zeros.
     """
+    if seconds == 0:
+        return "+0" if sign else "0"
+    magnitude = abs(seconds)
+    exponent = math.floor(math.log10(magnitude))
+    decimals = min(12, max(0, SIGNIFICANT - 1 - exponent))
+    text = f"{seconds:+.{decimals}f}" if sign else f"{magnitude:.{decimals}f}"
+    # Trailing zeros carry no information once the significant figures are in.
+    if "." in text:
+        text = text.rstrip("0").rstrip(".")
+    return text
+
+
+def _offset_human(seconds: float | None) -> str:
+    """A clock offset in seconds. The sign says which way the clock is out."""
     if seconds is None:
         return "unknown"
-    magnitude = abs(seconds)
-    if magnitude < 1e-6:
-        return f"{seconds * 1e9:+.0f} ns"
-    if magnitude < 1e-3:
-        return f"{seconds * 1e6:+.1f} µs"
-    if magnitude < 1:
-        return f"{seconds * 1e3:+.2f} ms"
-    return f"{seconds:+.3f} s"
+    return _decimal_seconds(seconds) + " s"
 
 
 def _offset_cell(seconds: float | None) -> str:
@@ -91,7 +106,7 @@ def _magnitude_cell(seconds: float | None) -> str:
     """A peak excursion, which is a size and so carries no sign."""
     if seconds is None:
         return ""
-    return _offset_human(abs(seconds)).lstrip("+")
+    return _decimal_seconds(seconds, sign=False) + " s"
 
 
 app.jinja_env.globals["fmt_magnitude"] = _magnitude_cell
@@ -175,6 +190,7 @@ def _build_page(range_key: str) -> str:
 
     sats = vm.satellite_detail(samples)
 
+    tile = next((r for r in stats if r.get("window") == "tile"), {})
     locked_days = [d for d in days if d.get("availability") is not None]
     availability = (
         sum(d["availability"] for d in locked_days) / len(locked_days)
@@ -201,7 +217,9 @@ def _build_page(range_key: str) -> str:
         adev_chart=charts.adev_chart(adev),
         satellite_chart=charts.satellite_chart(sats),
         sources=history.sources(),
-        stats=stats,
+        stats=[r for r in stats if r.get("window") != "tile"],
+        sys_sd=tile.get("sys_sd"),
+        pps_sd=tile.get("pps_sd"),
         constellations=vm.satellites(samples),
         availability=availability,
         calendar_days=len(days),
@@ -224,6 +242,7 @@ def _build_page(range_key: str) -> str:
         # than a row of dashes. It is the render time, so it can be a minute stale --
         # the page says as much next to it.
         clock_initial=time.strftime("%H:%M:%S", time.gmtime()),
+        generated_date=time.strftime("%A %d %B %Y", time.gmtime()),
         **live,
     )
 
