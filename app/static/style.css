@@ -137,3 +137,131 @@ footer {
   th { color: var(--dim); font-size: .85rem; font-weight: 600; }
   .num { font-size: 1.05rem; }
 }
+
+/* ---------- the live clock ---------- */
+
+.clock {
+  margin: 1rem 0 .25rem;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(2.2rem, 11vw, 3.4rem);
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+.clock-zone { font-size: .4em; color: var(--dim); letter-spacing: 0; }
+
+/* ---------- range switcher ---------- */
+
+/* Links, not buttons: each range is a real URL that renders server-side, so the
+   switcher works without JavaScript and a range can be bookmarked. */
+.ranges { display: flex; gap: .4rem; margin: .5rem 0 1rem; flex-wrap: wrap; }
+.range {
+  display: inline-block;
+  padding: .25rem .7rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  font-size: .85rem;
+  text-decoration: none;
+  color: var(--accent);
+  background: var(--bg);
+}
+.range.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
+  font-weight: 600;
+}
+
+/* ---------- charts ---------- */
+
+/* The SVGs are drawn in a fixed coordinate space and scaled to the column, so the
+   stroke widths are set here in user units rather than pixels. */
+svg.chart {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 260px;
+  margin: .25rem 0 .5rem;
+  overflow: visible;
+}
+svg.calendar { display: block; width: 100%; height: auto; margin: .25rem 0 .5rem; }
+
+.grid { stroke: var(--rule); stroke-width: 1; }
+.zero { stroke: var(--dim); stroke-width: 1; stroke-dasharray: 4 3; }
+.axis { fill: var(--dim); font-size: 10px; font-family: ui-monospace, Menlo, monospace; }
+.band { fill: var(--accent); fill-opacity: .18; stroke: none; }
+.line { fill: none; stroke: var(--accent); stroke-width: 1.6; vector-effect: non-scaling-stroke; }
+.peer { fill: none; stroke-width: 1.3; vector-effect: non-scaling-stroke; }
+.dot  { fill: var(--accent); }
+svg.empty .axis { font-size: 12px; }
+
+.cal-good { fill: #2e7d32; }
+.cal-ok   { fill: #e0a800; }
+.cal-bad  { fill: #c62828; }
+.cal-none { fill: var(--rule); }
+
+.sat-used { fill: var(--accent); }
+.sat-seen { fill: var(--rule); }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .cal-good { fill: #4caf50; }
+  :root:not([data-theme="light"]) .cal-ok   { fill: #d4a017; }
+  :root:not([data-theme="light"]) .cal-bad  { fill: #e05548; }
+}
+
+/* ---------- legends ---------- */
+
+.legend {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: .25rem 1rem;
+  margin: .25rem 0 .75rem;
+  padding: 0;
+  font-size: .82rem;
+  color: var(--dim);
+}
+.legend li { display: flex; align-items: center; gap: .35rem; }
+.swatch {
+  display: inline-block;
+  width: .7rem;
+  height: .7rem;
+  border-radius: 2px;
+  background: var(--rule);
+}
+/* The calendar and satellite swatches reuse the SVG classes, which set `fill`; in HTML
+   they need `background` instead. */
+.swatch.cal-good { background: #2e7d32; }
+.swatch.cal-ok   { background: #e0a800; }
+.swatch.cal-bad  { background: #c62828; }
+.swatch.cal-none { background: var(--rule); }
+.swatch.sat-used { background: var(--accent); }
+.swatch.sat-seen { background: var(--rule); }
+
+/* ---------- sources table ---------- */
+
+/* Always scrollable, not only on a phone: eight numeric columns overflow a narrow
+   desktop window too, and an overflowing table silently clips its right-hand columns. */
+.sources-scroll { overflow-x: auto; }
+table.sources { font-size: .88rem; min-width: 34rem; }
+table.sources th { width: auto; }
+table.sources thead th { color: var(--dim); font-size: .78rem; font-weight: 600; }
+table.sources td.num, table.sources th.num { text-align: right; }
+/* The selected source is the one fact to find at a glance. */
+tr.state-sync th, tr.state-sync td { font-weight: 600; }
+tr.state-falseticker td, tr.state-unreach td { color: var(--dim); }
+
+/* ---------- config snippets ---------- */
+
+dl.snippets { margin: .5rem 0 1rem; }
+dl.snippets dt { color: var(--dim); font-size: .82rem; font-weight: 600; margin-top: .6rem; }
+dl.snippets dd { margin: .15rem 0 0; }
+
+@media (max-width: 42rem) {
+  /* The sources table is the one table that must stay a table: eight columns of
+     numbers only mean anything side by side. It scrolls instead. */
+  table.sources { display: table; font-size: .8rem; }
+  table.sources thead { display: table-header-group; }
+  table.sources tbody, table.sources tr { display: table-row; }
+  table.sources th, table.sources td { display: table-cell; padding: .3rem .4rem .3rem 0; border-bottom: 1px solid var(--rule); }
+}

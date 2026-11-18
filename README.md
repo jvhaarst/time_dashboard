@@ -50,11 +50,31 @@ All environment variables, all optional.
 | `POOL_URL` | empty | If set, the page says the server is an NTP Pool member and links here. |
 | `LOG_LEVEL` | `INFO` | |
 
+## What is on the page
+
+| Section | Source |
+|---|---|
+| Live UTC clock and lock status | `chrony_tracking_*`, with `locked_since` walked back through the stratum series |
+| Offset history, 1h/24h/7d/30d | `chrony_tracking_last_offset_seconds`, rolled up as mean with a min-max band |
+| Compared to other NTP servers | `chrony_sources_last_sample_offset_seconds` for the network sources this server polls |
+| NTP sources table | `chrony_sources_*` and `chrony_sourcestats_*`, with chrony's own selection state |
+| Lock calendar, 30 days | fraction of each day at `chrony_tracking_stratum == 1` |
+| Allan deviation | `chrony_tracking_frequency_ppms`, overlapping ADEV over 30 days |
+| Satellites | `gpsd_sat_ss` per satellite, plus DOP, mean C/No and leap seconds |
+| What it serves | `chrony_serverstats_*` and `ntp_clients_active` per window |
+
+Every chart is **inline SVG rendered on the server** — no charting library, no CDN, and
+the page is still one request. The range switcher is four ordinary links, so it works
+with JavaScript off and a range can be bookmarked. The only JavaScript is a ticking
+clock and a poll of `/api/status` that refreshes a handful of live figures in place.
+
 ## Routes
 
 | Route | Purpose |
 |---|---|
-| `/` | The page. Returns **503** with a short explanation when the store is unreachable, rather than 200 with blanks, so a monitor can tell. |
+| `/` | The page. `?range=1h\|24h\|7d\|30d` picks the history window. Returns **503** with a short explanation when the store is unreachable, rather than 200 with blanks, so a monitor can tell. |
+| `/api/status` | The live figures as JSON. |
+| `/api/history?range=24h` | Offset history for one window as JSON. |
 | `/healthz` | Liveness. Deliberately does **not** query VictoriaMetrics. |
 | `/readyz` | Readiness. Does query it. |
 
@@ -92,10 +112,46 @@ the log, not demand — on this server the two differ by two orders of magnitude
 shows `ntp_clients_active` per window for demand and labels the log as a saturation
 indicator.
 
-A third one is about PromQL rather than the metrics: `metric_a or metric_b` compares
-label sets **without** `__name__`, so a union of several single-series metrics that
-differ only in their name silently returns just the first. That is why the instant query
-is one regex selector instead of a chain of `or`.
+**`source_mode` and `source_state` exist on `chrony_sources_state_info` only.** Every
+other series in that family carries just `source_name` and `source_address`, so
+filtering `chrony_sources_last_sample_offset_seconds{source_mode="client"}` matches
+nothing, returns 200 with an empty result, and draws an empty chart with no error
+anywhere. The network sources have to be named from `state_info` first.
+
+## Four traps in MetricsQL
+
+All four cost a wrong page rather than an exception, except where noted.
+
+**A subquery inherits the outer step unless you give it one.** `(expr)[1d]` where expr
+is not a bare selector is a subquery. In a range query stepping by a day,
+`sum_over_time((stratum == bool 1)[1d])` evaluated the inner expression *once* per day
+while `count_over_time(stratum[1d])` counted 2,880 raw samples, so availability came out
+as 1/2880 and the lock calendar drew 31 consecutive red days on a server that had not
+missed a second. The fix is the explicit step in `[1d:300]`.
+
+**`metric_a or metric_b` drops `__name__` before matching labels**, so a union of
+single-series metrics that differ only in their name silently returns just the first.
+That is why the instant query is one regex selector instead of a chain of `or`.
+
+**A range query that would exceed `-search.maxPointsPerTimeseries` is refused**, whole,
+with HTTP 422 — it is not truncated. 30 days at a 60 s step is 43,200 points and fails;
+120 s is 21,600 and works. That limit, not taste, is why the Allan deviation's shortest
+tau is 120 s.
+
+**Label regexes need two layers of escaping, and each fails differently.** The inner
+layer is RE2: a literal `.` must become `\.`. The outer layer is MetricsQL's string
+literal, which is stricter than Prometheus's and rejects `"\."` with *cannot parse
+string literal ... invalid syntax*, so the backslash has to be doubled in the query
+text. And `re.escape` cannot produce the inner layer: Python escapes `-` as `\-`, which
+RE2 rejects as an invalid escape sequence — relevant here because one of this server's
+sources is `static.ip-031-223-173-226.signet.nl`.
+
+## One Flask trap
+
+A context variable shadows a Jinja global of the same name. The template receives
+`offset` (the current offset, as text) and also needs a formatting helper; registering
+that helper as `offset` makes every call fail with `'str' object is not callable`. It is
+registered as `fmt_offset`.
 
 ## Versioning
 

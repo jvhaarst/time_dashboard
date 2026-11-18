@@ -36,10 +36,12 @@ INSTANT_SELECTOR = (
     "|root_delay_seconds|root_dispersion_seconds|skew_ppms|frequency_ppms"
     "|update_interval_seconds|system_time_seconds|info)"
     "|chrony_serverstats_ntp_packets_(received|dropped)_total"
-    "|chrony_sources_last_sample_offset_seconds"
-    "|gpsd_(nSat|uSat|mode|sat_ss)"
+    "|chrony_sources_(state_info|stratum|polling_interval_seconds|reachability_ratio"
+    "|last_sample_offset_seconds|last_sample_error_margin_seconds|last_sample_age_seconds)"
+    "|chrony_sourcestats_stddev"
+    "|gpsd_(nSat|uSat|mode|sat_ss|pdop|tdop|hdop|leapseconds)"
     "|ntp_clients_(active|log_entries|total|countries_total)"
-    "|node_boot_time_seconds"
+    "|node_boot_time_seconds|node_hwmon_temp_celsius"
     '"}'
 )
 
@@ -107,6 +109,63 @@ def instant() -> dict[str, list[Sample]]:
             continue
         out.setdefault(name, []).append(Sample(value=value, labels=labels))
     return out
+
+
+def query_range(
+    expr: str, start: float, end: float, step: int
+) -> list[tuple[dict[str, str], list[tuple[float, float]]]]:
+    """A range query, as (labels, [(timestamp, value), ...]) per series.
+
+    Mind the point budget: VictoriaMetrics refuses a range query that would exceed
+    `-search.maxPointsPerTimeseries` (30,000 by default) with **HTTP 422**, and it does
+    so for the whole query rather than truncating. 30 days at a 60 s step is 43,200
+    points and fails; 120 s is 21,600 and works. That is why the frequency history uses
+    a 120 s base interval.
+    """
+    try:
+        r = requests.get(
+            f"{VM_URL}/api/v1/query_range",
+            params={
+                "query": expr,
+                "start": int(start),
+                "end": int(end),
+                "step": step,
+            },
+            timeout=VM_TIMEOUT * 4,
+        )
+        r.raise_for_status()
+        body = r.json()
+    except requests.RequestException as exc:
+        raise VictoriaMetricsError(f"range query against {VM_URL}: {exc}") from exc
+    except ValueError as exc:
+        raise VictoriaMetricsError(f"{VM_URL} did not answer JSON: {exc}") from exc
+    if body.get("status") != "success":
+        raise VictoriaMetricsError(
+            f"{VM_URL} answered {body.get('status')!r}: {body.get('error')}"
+        )
+    out = []
+    for series in body.get("data", {}).get("result", []):
+        labels = dict(series.get("metric", {}))
+        labels.pop("__name__", None)
+        points = []
+        for ts, raw in series.get("values", []):
+            try:
+                points.append((float(ts), float(raw)))
+            except (TypeError, ValueError):
+                continue
+        out.append((labels, points))
+    return out
+
+
+def scalar(expr: str) -> float | None:
+    """The first value of an instant query, or None."""
+    result = _query(expr)
+    if not result:
+        return None
+    try:
+        return float(result[0]["value"][1])
+    except (KeyError, IndexError, TypeError, ValueError):
+        return None
 
 
 def packets_per_second(window: str = "5m") -> float | None:
@@ -191,3 +250,43 @@ def satellites(samples: dict[str, list[Sample]]) -> list[dict[str, Any]]:
     ]
     rows.sort(key=lambda r: (-r["used"], -r["seen"], r["name"]))
     return rows
+
+
+def satellite_detail(samples: dict[str, list[Sample]]) -> list[dict[str, Any]]:
+    """One row per satellite in view, sorted by constellation then signal strength.
+
+    `used` comes from the label on `gpsd_sat_ss`, for the reason given in `satellites()`.
+    """
+    truthy = {"true", "1", "yes"}
+    rows = []
+    for s in samples.get("gpsd_sat_ss", []):
+        gnss = s.labels.get("gnssid", "")
+        rows.append(
+            {
+                "constellation": GNSS_NAMES.get(gnss, f"gnssid {gnss}"),
+                "gnssid": gnss,
+                "prn": s.labels.get("PRN") or s.labels.get("svid") or "?",
+                "ss": s.value,
+                "used": s.labels.get("used", "").strip().lower() in truthy,
+            }
+        )
+    rows.sort(key=lambda r: (r["gnssid"], -r["ss"]))
+    return rows
+
+
+def mean_signal(samples: dict[str, list[Sample]], used_only: bool = True) -> float | None:
+    """Mean carrier-to-noise of the satellites, which is the usual antenna-health number.
+
+    Over the satellites in the fix by default: the ones the receiver sees but rejects are
+    typically low and would drag the figure down without saying anything about the
+    antenna.
+    """
+    truthy = {"true", "1", "yes"}
+    values = [
+        s.value
+        for s in samples.get("gpsd_sat_ss", [])
+        if not used_only or s.labels.get("used", "").strip().lower() in truthy
+    ]
+    if not values:
+        return None
+    return sum(values) / len(values)
