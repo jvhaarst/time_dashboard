@@ -11,7 +11,20 @@
 <main>
 
   <header>
-    <h1>{{ server_name }}</h1>
+    <!-- Name and verdict on one line: the first question is "is it working",
+         and the answer should not need a scroll or a second glance. -->
+    <div class="title-row">
+      <h1>{{ server_name }}</h1>
+      <p class="status {{ 'ok' if healthy else 'bad' }}" id="status">
+      {%- if healthy %}
+        Locked to {{ reference }}
+      {%- elif not chrony_up %}
+        chronyd is not answering its exporter &mdash; figures below are the last recorded
+      {%- else %}
+        Degraded &mdash; stratum {{ stratum|int if stratum is not none else '?' }}, no local reference selected
+      {%- endif %}
+    </p>
+    </div>
     <p class="sub">Stratum 1 NTP server, disciplined by GNSS &mdash; {{ server_location }}</p>
 
     <div class="clock">
@@ -22,15 +35,6 @@
       <span class="dim">server time as rendered; enable JavaScript to compare it with your own clock</span>
     </p>
 
-    <p class="status {{ 'ok' if healthy else 'bad' }}" id="status">
-      {%- if healthy %}
-        Locked to {{ reference }}
-      {%- elif not chrony_up %}
-        chronyd is not answering its exporter &mdash; figures below are the last recorded
-      {%- else %}
-        Degraded &mdash; stratum {{ stratum|int if stratum is not none else '?' }}, no local reference selected
-      {%- endif %}
-    </p>
 
     <!-- The figures worth seeing before scrolling. Each tile is one number, with the
          context that makes it mean something underneath: a spread, a denominator or a
