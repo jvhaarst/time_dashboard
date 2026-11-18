@@ -55,6 +55,7 @@ All environment variables, all optional.
 | Section | Source |
 |---|---|
 | Live UTC clock and lock status | `chrony_tracking_*`, with `locked_since` walked back through the stratum series |
+| Local offset check | the visitor's own clock against the server, measured over HTTP |
 | Offset history, 1h/24h/7d/30d | `chrony_tracking_last_offset_seconds`, rolled up as mean with a min-max band |
 | Summary per window | mean, standard deviation, peak excursion, sample count and locked fraction, all four windows in one query |
 | Compared to other NTP servers | `chrony_sources_last_sample_offset_seconds` for the network sources this server polls |
@@ -74,6 +75,7 @@ clock and a poll of `/api/status` that refreshes a handful of live figures in pl
 | Route | Purpose |
 |---|---|
 | `/` | The page. `?range=1h\|24h\|7d\|30d` picks the history window. Returns **503** with a short explanation when the store is unreachable, rather than 200 with blanks, so a monitor can tell. |
+| `/api/time` | The server's clock alone, uncached. The cheapest route on the site: its latency is the visitor's measurement error. |
 | `/api/status` | The live figures as JSON. |
 | `/api/history?range=24h` | Offset history for one window as JSON. |
 | `/healthz` | Liveness. Deliberately does **not** query VictoriaMetrics. |
@@ -146,6 +148,30 @@ string literal ... invalid syntax*, so the backslash has to be doubled in the qu
 text. And `re.escape` cannot produce the inner layer: Python escapes `-` as `\-`, which
 RE2 rejects as an invalid escape sequence — relevant here because one of this server's
 sources is `static.ip-031-223-173-226.signet.nl`.
+
+## The local offset check
+
+The page measures the visitor's clock against the server and corrects the big digits by
+the result, so what is displayed is the **server's** time rather than the browser's.
+
+It is NTP's own arithmetic over HTTP:
+
+    offset = t1 - (t0 + t3) / 2          delay = t3 - t0
+
+`t0` is taken just before the request, `t3` just after the response headers arrive, and
+`t1` is `/api/time`'s timestamp. One server timestamp stands for both the receive and
+transmit times: the handler does nothing in between, so the two differ by microseconds
+while the network contributes milliseconds, and returning both would imply a precision
+that is not there.
+
+Five samples are taken and **the one with the shortest round trip wins** — the same
+choice chrony and ntpd make. A long round trip is nearly always one-sided queueing, and
+an asymmetric path biases the offset by half the asymmetry, so the best sample is the
+least biased one rather than the average. The round trip is quoted alongside the result
+because it bounds the error: the true offset is within half of it.
+
+This is good to a few milliseconds over a LAN and tens over the internet. It is a
+sanity check, not a measurement of the server, and the page says so.
 
 ## One Flask trap
 

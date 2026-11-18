@@ -220,6 +220,10 @@ def _build_page(range_key: str) -> str:
         server_hardware=SERVER_HARDWARE,
         pool_url=POOL_URL,
         generated=time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
+        # Rendered into the clock so a visitor without JavaScript sees a time rather
+        # than a row of dashes. It is the render time, so it can be a minute stale --
+        # the page says as much next to it.
+        clock_initial=time.strftime("%H:%M:%S", time.gmtime()),
         **live,
     )
 
@@ -245,6 +249,26 @@ def index() -> Response:
         )
     _page_cache[range_key] = (now, html)
     return Response(html, mimetype="text/html")
+
+
+@app.route("/api/time")
+def api_time() -> Response:
+    """The server's clock, for the browser to measure itself against.
+
+    Deliberately the cheapest route on the site: no VictoriaMetrics query, no cache, no
+    template. It is called several times per visit and its latency IS the measurement
+    error, so anything done here makes the answer worse.
+
+    One timestamp is returned, not a receive/transmit pair. In a synchronous worker the
+    two would differ by microseconds while the network path contributes milliseconds,
+    so the extra field would imply a precision that is not there.
+    """
+    payload = jsonify({"t": time.time()})
+    # Any cache between here and the browser would return a stale timestamp and the
+    # visitor would be told their clock is wrong by exactly the cache age.
+    payload.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    payload.headers["Pragma"] = "no-cache"
+    return payload
 
 
 @app.route("/api/status")

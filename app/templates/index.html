@@ -15,8 +15,11 @@
     <p class="sub">Stratum 1 NTP server, disciplined by GNSS &mdash; {{ server_location }}</p>
 
     <div class="clock">
-      <span id="clock">--:--:--</span> <span class="clock-zone">UTC</span>
+      <span id="clock">{{ clock_initial }}</span> <span class="clock-zone">UTC</span>
     </div>
+    <p class="offset-check" id="offset-check">
+      <span class="dim">Server time as rendered. Enable JavaScript to compare it with your own clock.</span>
+    </p>
 
     <p class="status {{ 'ok' if healthy else 'bad' }}" id="status">
       {%- if healthy %}
@@ -324,16 +327,87 @@
 (function () {
   "use strict";
   var el = document.getElementById("clock");
+  var check = document.getElementById("offset-check");
+
+  // Measured offset of this browser's clock against the server, in milliseconds. The
+  // displayed clock is corrected by it, so the big digits are the SERVER's time rather
+  // than the visitor's -- which is the point of a time server's status page.
+  var offsetMs = 0;
+
   function pad(n) { return n < 10 ? "0" + n : "" + n; }
   function tick() {
-    var d = new Date();
+    var d = new Date(Date.now() + offsetMs);
     el.textContent = pad(d.getUTCHours()) + ":" + pad(d.getUTCMinutes()) + ":" + pad(d.getUTCSeconds());
   }
   tick();
   setInterval(tick, 1000);
 
-  // The browser's own clock is whatever it is; this page cannot measure a visitor's
-  // offset, and pretending otherwise would be the one dishonest thing on it.
+  // The local offset check: NTP's own arithmetic over HTTP.
+  //
+  //   offset = t1 - (t0 + t3) / 2        delay = t3 - t0
+  //
+  // t0 is just before the request, t3 just after the response headers arrive, t1 is
+  // the server's clock. One timestamp stands for both the server's receive and
+  // transmit times; the handler does nothing in between, and the network path is
+  // milliseconds against its microseconds.
+  //
+  // Several samples are taken and the one with the SHORTEST round trip wins, which is
+  // what chrony and ntpd do: a long round trip is nearly always one-sided queueing,
+  // and an asymmetric path biases the offset by half the asymmetry. The best sample is
+  // the least biased one, not the average.
+  function sample() {
+    var t0 = Date.now();
+    return fetch("/api/time?_=" + t0, { cache: "no-store" })
+      .then(function (r) {
+        var t3 = Date.now();
+        if (!r.ok) { return null; }
+        return r.json().then(function (j) {
+          var t1 = j.t * 1000;
+          return { delay: t3 - t0, offset: t1 - (t0 + t3) / 2 };
+        });
+      })
+      .catch(function () { return null; });
+  }
+
+  function fmt(ms) {
+    var a = Math.abs(ms);
+    var sign = ms >= 0 ? "+" : "-";
+    if (a < 1) { return sign + (a * 1000).toFixed(0) + " \u00b5s"; }
+    if (a < 1000) { return sign + a.toFixed(1) + " ms"; }
+    if (a < 60000) { return sign + (a / 1000).toFixed(2) + " s"; }
+    return sign + (a / 60000).toFixed(1) + " min";
+  }
+
+  function measure() {
+    var best = null;
+    var chain = Promise.resolve();
+    for (var i = 0; i < 5; i++) {
+      chain = chain.then(sample).then(function (s) {
+        if (s && (!best || s.delay < best.delay)) { best = s; }
+      });
+    }
+    return chain.then(function () {
+      if (!best) {
+        check.innerHTML = '<span class="dim">Could not reach the server to compare clocks.</span>';
+        return;
+      }
+      offsetMs = best.offset;
+      tick();
+      // The round trip bounds the measurement: the true offset is within half of it,
+      // so quoting the offset without the uncertainty would be a false precision.
+      var bound = best.delay / 2;
+      var klass = Math.abs(best.offset) > 1000 ? "bad" : "ok";
+      check.innerHTML =
+        '<span class="pill ' + klass + '">Your clock: ' + fmt(best.offset) +
+        '</span> <span class="dim">\u00b1' + bound.toFixed(0) +
+        ' ms, measured over HTTP in ' + best.delay + ' ms round trip</span>';
+    });
+  }
+
+  measure();
+  // Re-measure occasionally: a laptop waking from sleep is the common case, and its
+  // clock can be seconds out until its own NTP client catches up.
+  setInterval(measure, 600000);
 
   function refresh() {
     fetch("/api/status", { headers: { "Accept": "application/json" } })
