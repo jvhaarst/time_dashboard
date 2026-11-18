@@ -88,8 +88,8 @@
   <section class="use">
     <h2>Use this time server</h2>
     <p>
-      Point your client at <code>{{ server_name }}</code>. It answers NTPv4 over IPv4 and
-      IPv6{% if pool_url %}, and is part of the <a href="{{ pool_url }}">global NTP pool</a>{% endif %}.
+      Point your client at <code>{{ server_name }}</code>. It answers NTPv4 over
+      IPv4{% if ipv6 %} and IPv6{% endif %}{% if pool_url %}, and is part of the <a href="{{ pool_url }}">global NTP pool</a>{% endif %}.
     </p>
 
     <ul class="snippets">

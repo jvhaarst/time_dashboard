@@ -373,3 +373,14 @@ section.use h2 { border-bottom: 0; margin-bottom: .2rem; }
    aid, and colour on this page already means good or bad. */
 .z0 { color: var(--zero-a); }
 .z1 { color: var(--zero-b); }
+
+/* Relative to the text they sit in, not to the page. The fixed greys above are right
+   inside a full-contrast figure and wrong inside a `--dim` tile note or the green
+   status pill: there the bands came out LIGHTER than the surrounding text and the step
+   between them all but disappeared, so the banding read as missing. Fading
+   `currentColor` keeps the same proportion whatever colour the line is. The rules above
+   remain the fallback for browsers without color-mix. */
+@supports (color: color-mix(in srgb, currentColor 50%, transparent)) {
+  .z0 { color: color-mix(in srgb, currentColor 55%, transparent); }
+  .z1 { color: color-mix(in srgb, currentColor 28%, transparent); }
+}

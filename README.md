@@ -48,6 +48,7 @@ All environment variables, all optional.
 | `SERVER_LOCATION` | `Doorwerth, the Netherlands` | Shown in the subtitle. |
 | `SERVER_HARDWARE` | a Pi with a Uputronics HAT | Shown in "The machine". |
 | `POOL_URL` | empty | If set, the page says the server is an NTP Pool member and links here. |
+| `SERVER_IPV6` | unset (false) | Whether to tell visitors the server answers over IPv6. See below before setting it. |
 | `LOG_LEVEL` | `INFO` | |
 
 ## What is on the page
@@ -172,6 +173,21 @@ because it bounds the error: the true offset is within half of it.
 
 This is good to a few milliseconds over a LAN and tens over the internet. It is a
 sanity check, not a measurement of the server, and the page says so.
+
+## The IPv6 claim is a value, not a constant
+
+Measured from outside on 2026-11-18: `ntp.vanhaarst.net` publishes an AAAA, chronyd
+listens on the IPv6 wildcard and `chrony.conf` has `allow all` — and **every inbound
+IPv6 packet is refused one hop upstream of the router**. `2001:4c3c:0:3d::1:17` answers
+with *Destination unreachable: Administratively prohibited*, identically for ICMP echo,
+TCP 22 and UDP 123, and a hop walk never reaches the FritzBox. A port forward therefore
+cannot fix it.
+
+Over IPv4 from the same host the server answers in 12.5 ms, `mode=4 stratum=1
+refid=b'PPS\x00'`.
+
+So the page says IPv4 only. Set `SERVER_IPV6=true` **after** an external probe answers,
+not after the ISP says it will.
 
 ## One Flask trap
 

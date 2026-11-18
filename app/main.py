@@ -33,6 +33,14 @@ SERVER_HARDWARE = os.environ.get(
 )
 POOL_URL = os.environ.get("POOL_URL", "")
 
+# Whether to tell visitors the server answers over IPv6. Default false, and that is not
+# pessimism: ntp.vanhaarst.net publishes an AAAA, chronyd listens on the IPv6 wildcard
+# and `allow all` is set, but inbound IPv6 is refused one hop UPSTREAM of the router --
+# 2001:4c3c:0:3d::1:17 answers every packet with "Destination unreachable:
+# Administratively prohibited", for ICMP, TCP 22 and UDP 123 alike. Claiming IPv6 on the
+# page would send IPv6-preferring clients down a path that cannot work.
+SERVER_IPV6 = os.environ.get("SERVER_IPV6", "").strip().lower() in {"1", "true", "yes"}
+
 # Page cache. Longer than the 10 s client poll on purpose: the poll refreshes the live
 # figures from /api/status, which is one cheap instant query, while a full render also
 # draws the history charts.
@@ -277,6 +285,7 @@ def _build_page(range_key: str) -> str:
         server_location=SERVER_LOCATION,
         server_hardware=SERVER_HARDWARE,
         pool_url=POOL_URL,
+        ipv6=SERVER_IPV6,
         generated=time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
         # Rendered into the clock so a visitor without JavaScript sees a time rather
         # than a row of dashes. It is the render time, so it can be a minute stale --
