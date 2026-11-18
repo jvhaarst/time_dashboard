@@ -56,6 +56,7 @@ All environment variables, all optional.
 |---|---|
 | Live UTC clock and lock status | `chrony_tracking_*`, with `locked_since` walked back through the stratum series |
 | Offset history, 1h/24h/7d/30d | `chrony_tracking_last_offset_seconds`, rolled up as mean with a min-max band |
+| Summary per window | mean, standard deviation, peak excursion, sample count and locked fraction, all four windows in one query |
 | Compared to other NTP servers | `chrony_sources_last_sample_offset_seconds` for the network sources this server polls |
 | NTP sources table | `chrony_sources_*` and `chrony_sourcestats_*`, with chrony's own selection state |
 | Lock calendar, 30 days | fraction of each day at `chrony_tracking_stratum == 1` |

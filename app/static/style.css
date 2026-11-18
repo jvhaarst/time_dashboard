@@ -262,6 +262,11 @@ dl.snippets dd { margin: .15rem 0 0; }
      numbers only mean anything side by side. It scrolls instead. */
   table.sources { display: table; font-size: .8rem; }
   table.sources thead { display: table-header-group; }
-  table.sources tbody, table.sources tr { display: table-row; }
+  /* `tbody` must be table-ROW-GROUP, not table-row. Setting it to table-row makes its
+     `tr` children behave as that row's cells, so the head and the body lay out as two
+     independent column structures: the first header cell stretched to the width of a
+     whole data row while the data cells kept their own widths. */
+  table.sources tbody { display: table-row-group; }
+  table.sources tr { display: table-row; }
   table.sources th, table.sources td { display: table-cell; padding: .3rem .4rem .3rem 0; border-bottom: 1px solid var(--rule); }
 }

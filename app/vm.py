@@ -90,6 +90,20 @@ def _query(expr: str) -> list[dict[str, Any]]:
     return body.get("data", {}).get("result", [])
 
 
+def query(expr: str) -> list[Sample]:
+    """An arbitrary instant query, as a flat list of samples with their labels."""
+    out = []
+    for series in _query(expr):
+        labels = dict(series.get("metric", {}))
+        labels.pop("__name__", None)
+        try:
+            value = float(series["value"][1])
+        except (KeyError, IndexError, TypeError, ValueError):
+            continue
+        out.append(Sample(value=value, labels=labels))
+    return out
+
+
 def instant() -> dict[str, list[Sample]]:
     """Every series the page needs, grouped by metric name.
 

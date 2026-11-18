@@ -75,6 +75,36 @@
       line is the mean over each interval, the band its minimum and maximum. This is an
       in-loop servo residual, not absolute accuracy against UTC.
     </p>
+
+    <h3>Summary</h3>
+    <div class="sources-scroll">
+    <table class="sources">
+      <thead>
+        <tr>
+          <th>Window</th><th class="num">Locked</th><th class="num">Samples</th>
+          <th class="num">Mean</th><th class="num">Std dev</th><th class="num">Peak</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in stats %}
+        <tr>
+          <th>{{ s.window }}</th>
+          <td class="num">{{ '%.3f'|format(s.availability * 100) ~ '%' if s.availability is not none else '' }}</td>
+          <td class="num">{{ '{:,}'.format(s.samples|int) if s.samples is not none else '' }}</td>
+          <td class="num">{{ fmt_offset(s.mean) }}</td>
+          <td class="num">{{ fmt_magnitude(s.sd) }}</td>
+          <td class="num">{{ fmt_magnitude(s.peak) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    <p class="note">
+      Peak is the largest excursion either side of zero, not an average, so one event
+      sets it for as long as it stays in the window. The mean is signed and the peak is
+      a magnitude. &ldquo;Locked&rdquo; is the fraction of the window at stratum 1,
+      sampled every five minutes.
+    </p>
   </section>
 
   <section>

@@ -87,6 +87,16 @@ def _offset_cell(seconds: float | None) -> str:
     return _offset_human(seconds)
 
 
+def _magnitude_cell(seconds: float | None) -> str:
+    """A peak excursion, which is a size and so carries no sign."""
+    if seconds is None:
+        return ""
+    return _offset_human(abs(seconds)).lstrip("+")
+
+
+app.jinja_env.globals["fmt_magnitude"] = _magnitude_cell
+
+
 # Used by the sources table, which formats a dozen offsets per row. NOT named `offset`:
 # the template already receives a context variable of that name (the current offset as
 # text), and a context variable shadows a global, so the call would fail with
@@ -159,6 +169,7 @@ def _build_page(range_key: str) -> str:
         f"peers:{range_key}", HISTORY_TTL, lambda: history.peer_history(range_key)
     )
     days = history.cached("calendar", CALENDAR_TTL, history.lock_calendar)
+    stats = history.cached("stats", HISTORY_TTL, history.window_stats)
     adev = history.cached("adev", ADEV_TTL, history.allan_deviation)
     since = history.cached("locked_since", CALENDAR_TTL, history.locked_since)
 
@@ -190,6 +201,7 @@ def _build_page(range_key: str) -> str:
         adev_chart=charts.adev_chart(adev),
         satellite_chart=charts.satellite_chart(sats),
         sources=history.sources(),
+        stats=stats,
         constellations=vm.satellites(samples),
         availability=availability,
         calendar_days=len(days),

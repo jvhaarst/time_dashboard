@@ -134,3 +134,60 @@ def test_cached_rebuilds_after_the_ttl(monkeypatch):
     assert history.cached("k", 1000, build) == 1
     assert history.cached("k", 1000, build) == 1
     assert history.cached("k", 0, build) == 2
+
+
+def _stat(win, stat, value):
+    return history.vm.Sample(value=value, labels={"win": win, "stat": stat})
+
+
+def test_window_stats_peak_is_the_larger_magnitude_either_side_of_zero(monkeypatch):
+    """A clock that ran 118 s slow peaked at 118 s, even though max_over_time is small."""
+    monkeypatch.setattr(
+        history.vm,
+        "query",
+        lambda expr: [
+            _stat("1h", "max", 2e-7),
+            _stat("1h", "min", -118.7),
+            _stat("1h", "mean", -1.4e-3),
+            _stat("1h", "sd", 0.4),
+            _stat("1h", "samples", 120),
+            _stat("1h", "avail", 0.99953),
+        ],
+    )
+    row = next(r for r in history.window_stats() if r["window"] == "1h")
+    assert row["peak"] == pytest.approx(118.7)
+    assert row["mean"] == pytest.approx(-1.4e-3)
+    assert row["availability"] == pytest.approx(0.99953)
+
+
+def test_window_stats_returns_a_row_per_window_even_with_no_data(monkeypatch):
+    monkeypatch.setattr(history.vm, "query", lambda expr: [])
+    rows = history.window_stats()
+    assert [r["window"] for r in rows] == list(history.STAT_WINDOWS)
+    assert all(r["peak"] is None and r["mean"] is None for r in rows)
+
+
+def test_window_stats_peak_survives_a_missing_half(monkeypatch):
+    monkeypatch.setattr(
+        history.vm, "query", lambda expr: [_stat("24h", "max", 5e-6)]
+    )
+    row = next(r for r in history.window_stats() if r["window"] == "24h")
+    assert row["peak"] == pytest.approx(5e-6)
+
+
+def test_stats_query_labels_every_term_so_the_union_keeps_them_all():
+    """`or` matches on the full label set; without label_set only the first survives."""
+    q = history._stats_query()
+    assert q.count("label_set(") == len(history.STAT_WINDOWS) * 6
+    assert q.count(" or ") == len(history.STAT_WINDOWS) * 6 - 1
+
+
+def test_stats_query_avoids_a_subquery_for_the_peak():
+    """`max_over_time(abs(x)[30d])` is a subquery and would blow the point budget."""
+    q = history._stats_query()
+    assert "abs(" not in q
+    assert "min_over_time" in q and "max_over_time" in q
+
+
+def test_stats_query_gives_the_availability_subquery_an_explicit_step():
+    assert "[30d:300]" in history._stats_query()

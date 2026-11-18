@@ -356,3 +356,70 @@ def adev_from_frequency(y: list[float], tau0: float) -> list[tuple[float, float]
             out.append((m * tau0, math.sqrt(variance)))
         m *= 2
     return out
+
+
+# Summary statistics per window, as one query rather than twenty.
+#
+# `label_set` renames each result so the union keeps every term: `or` matches on the
+# full label set, and because these differ in `stat` and `win` nothing is swallowed. A
+# bare `avg_over_time(x[1h]) or stddev_over_time(x[1h])` would return only the first,
+# since set operators drop `__name__` before comparing.
+STAT_WINDOWS = ("1h", "24h", "7d", "30d")
+_OFFSET = "chrony_tracking_last_offset_seconds"
+
+
+def _stats_query() -> str:
+    terms = []
+    for win in STAT_WINDOWS:
+        terms += [
+            f'label_set(avg_over_time({_OFFSET}[{win}]), "stat", "mean", "win", "{win}")',
+            f'label_set(stddev_over_time({_OFFSET}[{win}]), "stat", "sd", "win", "{win}")',
+            # The peak excursion either side of zero. NOT
+            # `max_over_time(abs(x)[30d])`: wrapping the selector in abs() makes it a
+            # subquery, and a subquery needs an explicit step that at 30 days would
+            # exceed the point budget. min and max over the raw selector cost nothing
+            # and the larger magnitude is picked in Python.
+            f'label_set(max_over_time({_OFFSET}[{win}]), "stat", "max", "win", "{win}")',
+            f'label_set(min_over_time({_OFFSET}[{win}]), "stat", "min", "win", "{win}")',
+            f'label_set(count_over_time({_OFFSET}[{win}]), "stat", "samples", "win", "{win}")',
+            f'label_set(avg_over_time((chrony_tracking_stratum == bool 1)[{win}:300]),'
+            f' "stat", "avail", "win", "{win}")',
+        ]
+    return " or ".join(terms)
+
+
+def window_stats() -> list[dict[str, object]]:
+    """Mean, standard deviation, peak excursion, availability and sample count.
+
+    One instant query covers all four windows. Availability is sampled every 300 s, so
+    an outage shorter than that can fall between two evaluations -- the same caveat as
+    the lock calendar, and for the same reason.
+    """
+    grouped: dict[tuple[str, str], float] = {}
+    for sample in vm.query(_stats_query()):
+        win = sample.labels.get("win")
+        stat = sample.labels.get("stat")
+        if win and stat:
+            grouped[(win, stat)] = sample.value
+
+    rows = []
+    for win in STAT_WINDOWS:
+        hi = grouped.get((win, "max"))
+        lo = grouped.get((win, "min"))
+        peak = None
+        if hi is not None or lo is not None:
+            peak = max(
+                (abs(v) for v in (hi, lo) if v is not None),
+                default=None,
+            )
+        rows.append(
+            {
+                "window": win,
+                "mean": grouped.get((win, "mean")),
+                "sd": grouped.get((win, "sd")),
+                "peak": peak,
+                "samples": grouped.get((win, "samples")),
+                "availability": grouped.get((win, "avail")),
+            }
+        )
+    return rows
