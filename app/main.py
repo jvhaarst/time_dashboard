@@ -13,7 +13,7 @@ import os
 import re
 import time
 
-from flask import Flask, Response, jsonify, render_template, request
+from flask import Flask, Response, jsonify, redirect, render_template, request, url_for
 from markupsafe import Markup, escape
 
 from . import charts, history, vm
@@ -378,6 +378,17 @@ def api_history() -> Response:
     response = jsonify(payload)
     response.headers["Cache-Control"] = f"public, max-age={int(HISTORY_TTL)}"
     return response
+
+
+@app.route("/favicon.ico")
+def favicon() -> Response:
+    """Clients that ignore the page's <link rel="icon"> still ask for /favicon.ico.
+
+    Feed readers, bookmark tools, crawlers and older browsers request the path blindly;
+    without this route they got a 404. A permanent redirect sends them to the one icon
+    there is, so there is no second file to keep in step with the SVG.
+    """
+    return redirect(url_for("static", filename="favicon.svg"), code=301)
 
 
 @app.route("/healthz")

@@ -86,6 +86,7 @@ FischX (after a photo by JuergenG and AlMare), licensed
 | `/api/time` | The server's clock alone, uncached. The cheapest route on the site: its latency is the visitor's measurement error. |
 | `/api/status` | The live figures as JSON. |
 | `/api/history?range=24h` | Offset history for one window as JSON. |
+| `/favicon.ico` | **301** to `/static/favicon.svg`, for clients that ask for the path instead of reading the page's icon link. |
 | `/healthz` | Liveness. Deliberately does **not** query VictoriaMetrics. |
 | `/readyz` | Readiness. Does query it. |
 

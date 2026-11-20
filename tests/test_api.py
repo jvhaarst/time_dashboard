@@ -67,3 +67,16 @@ def test_favicon_is_served_as_svg(client):
     assert r.status_code == 200
     assert r.mimetype == "image/svg+xml"
     assert b"CC BY-SA 2.5" in r.data
+
+
+def test_favicon_ico_redirects_to_the_svg(client, monkeypatch):
+    """Clients that ignore the icon link ask for /favicon.ico; it must not 404."""
+
+    def explode(*args, **kwargs):
+        raise AssertionError("/favicon.ico must not query VictoriaMetrics")
+
+    monkeypatch.setattr("app.vm._query", explode)
+    r = client.get("/favicon.ico")
+    assert r.status_code == 301
+    assert r.headers["Location"].endswith("/static/favicon.svg")
+    assert client.get("/favicon.ico", follow_redirects=True).mimetype == "image/svg+xml"
