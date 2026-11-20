@@ -71,6 +71,13 @@ the page is still one request. The range switcher is four ordinary links, so it 
 with JavaScript off and a range can be bookmarked. The only JavaScript is a ticking
 clock and a poll of `/api/status` that refreshes a handful of live figures in place.
 
+The tab icon is a station clock whose hands the same tick sets to the corrected UTC
+time; without JavaScript it is a static clock at 10:10. It is simplified from
+[Station Clock.svg](https://commons.wikimedia.org/wiki/File:Station_Clock.svg) by
+FischX (after a photo by JuergenG and AlMare), licensed
+[CC BY-SA 2.5](https://creativecommons.org/licenses/by-sa/2.5/), and
+`app/static/favicon.svg` is under that same licence.
+
 ## Routes
 
 | Route | Purpose |

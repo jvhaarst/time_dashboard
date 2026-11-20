@@ -60,3 +60,10 @@ def test_readyz_reports_503_when_the_store_is_unreachable(client, monkeypatch):
 
 def test_history_rejects_an_unknown_range(client):
     assert client.get("/api/history?range=nope").status_code == 400
+
+
+def test_favicon_is_served_as_svg(client):
+    r = client.get("/static/favicon.svg")
+    assert r.status_code == 200
+    assert r.mimetype == "image/svg+xml"
+    assert b"CC BY-SA 2.5" in r.data

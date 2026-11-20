@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 800 800">
+  <!-- Simplified from "Station Clock.svg" by FischX, derived from "Station Clock.jpg"
+       by JuergenG and AlMare, CC BY-SA 2.5:
+       https://commons.wikimedia.org/wiki/File:Station_Clock.svg
+       This adaptation is under the same licence. Cut to four ticks and thick hands so
+       it reads at 16px; the dark rim keeps it visible on a light tab. Static at 10:10:
+       the page script redraws it with the hands at the current UTC time. -->
+  <circle cx="400" cy="400" r="370" fill="#fff" stroke="#222" stroke-width="60"/>
+  <path d="M400 90v110M400 600v110M90 400h110M600 400h110" stroke="#000" stroke-width="50"/>
+  <path d="M400 400V215" stroke="#000" stroke-width="70" stroke-linecap="round" transform="rotate(305 400 400)"/>
+  <path d="M400 400V130" stroke="#000" stroke-width="50" stroke-linecap="round" transform="rotate(60 400 400)"/>
+  <path d="M400 460V160" stroke="#a40000" stroke-width="22" transform="rotate(190 400 400)"/>
+  <circle cx="400" cy="400" r="42" fill="#a40000"/>
+</svg>

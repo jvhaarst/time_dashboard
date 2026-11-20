@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{ server_name }} &middot; time status</title>
 <meta name="description" content="Status of {{ server_name }}, a GPS-disciplined stratum-1 NTP server in {{ server_location }}.">
+<link rel="icon" type="image/svg+xml" id="favicon" href="{{ url_for('static', filename='favicon.svg') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
@@ -401,6 +402,23 @@
     }
   }
 
+  // The tab icon is the station clock from static/favicon.svg, redrawn with its hands
+  // at the corrected UTC time. Same drawing, only the three rotations change; a
+  // browser that ignores icon updates keeps the static 10:10 one.
+  var favicon = document.getElementById("favicon");
+  function faviconAt(d) {
+    var h = d.getUTCHours() % 12, m = d.getUTCMinutes(), s = d.getUTCSeconds();
+    var svg =
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800">' +
+      '<circle cx="400" cy="400" r="370" fill="#fff" stroke="#222" stroke-width="60"/>' +
+      '<path d="M400 90v110M400 600v110M90 400h110M600 400h110" stroke="#000" stroke-width="50"/>' +
+      '<path d="M400 400V215" stroke="#000" stroke-width="70" stroke-linecap="round" transform="rotate(' + (h * 30 + m / 2) + ' 400 400)"/>' +
+      '<path d="M400 400V130" stroke="#000" stroke-width="50" stroke-linecap="round" transform="rotate(' + (m * 6 + s / 10) + ' 400 400)"/>' +
+      '<path d="M400 460V160" stroke="#a40000" stroke-width="22" transform="rotate(' + (s * 6) + ' 400 400)"/>' +
+      '<circle cx="400" cy="400" r="42" fill="#a40000"/></svg>';
+    return "data:image/svg+xml," + encodeURIComponent(svg);
+  }
+
   function tick() {
     // Both clocks come from the SAME corrected instant, so the local one shows what
     // the time really is where the viewer is, not what their own clock believes.
@@ -410,6 +428,7 @@
       local.textContent = localTime(d) + " " + localZone.replace(/_/g, " ");
       local.hidden = false;
     }
+    if (favicon) { favicon.href = faviconAt(d); }
   }
   tick();
   setInterval(tick, 1000);
