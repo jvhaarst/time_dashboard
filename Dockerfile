@@ -7,7 +7,7 @@
 
 FROM ghcr.io/astral-sh/uv:0.13.9@sha256:d3b601f0c7b118bc1753febf7c41cc80981df678445e0254284eecf84db79a7d AS uv
 
-FROM python:3.15-slim@sha256:1c670c3568107e243bfd05457ad9ca0b11c35a855c985af73e4452db9a714e70 AS build
+FROM python:3.15-slim@sha256:63bb298d2b7b88f176f51b5189f54ce6535c997682ea70885d2132f5d473a8a5 AS build
 
 COPY --from=uv /uv /usr/local/bin/uv
 
@@ -26,7 +26,7 @@ RUN uv sync --frozen --no-dev
 COPY app ./app
 
 
-FROM python:3.15-slim@sha256:1c670c3568107e243bfd05457ad9ca0b11c35a855c985af73e4452db9a714e70
+FROM python:3.15-slim@sha256:63bb298d2b7b88f176f51b5189f54ce6535c997682ea70885d2132f5d473a8a5
 
 # Non-root, and no shell for the account: the process needs to read nothing but its own
 # code and to open one TCP port.
