@@ -78,10 +78,10 @@ SIGNIFICANT = 4
 def _decimal_seconds(seconds: float, sign: bool = True) -> str:
     """A duration as plain decimal seconds, never scaled and never in exponent form.
 
-    Scaled units read well on their own but badly in a column: `639 ns`, `18.6 us` and
-    `-39.95 ms` are three different scales, so the eye cannot rank them without doing
-    arithmetic, and a unit that changes between refreshes makes a steady figure look
-    like it jumped. One unit for everything makes the magnitude the thing you see.
+    This is the layman's form, used only above "Use this time server": a visitor who
+    has never met a microsecond can still see that 0.000000639 is a very small part of
+    a second, where `639 ns` asks them to know the prefix. Everything below that block
+    is for readers who do, and uses `_si_seconds` instead.
 
     The decimal count follows the value, so four significant figures survive at any
     magnitude: 0.000000639 keeps its 639, and 118.7 does not grow a tail of zeros.
@@ -96,6 +96,42 @@ def _decimal_seconds(seconds: float, sign: bool = True) -> str:
     if "." in text:
         text = text.rstrip("0").rstrip(".")
     return text
+
+
+# Largest first: a value takes the first unit it is at least one of.
+_SI_UNITS = ((1.0, "s"), (1e-3, "ms"), (1e-6, "µs"), (1e-9, "ns"))
+
+
+def _si_seconds(seconds: float, sign: bool = True) -> str:
+    """A duration scaled to s, ms, µs or ns, with four significant figures.
+
+    The technical form, used from "Offset history" down, where the offset chart's axis
+    already speaks in SI units and the tables should read the same way. Below a
+    nanosecond it stays in ns with decimals rather than reaching for picoseconds,
+    which nothing on this page can resolve.
+    """
+    if seconds == 0:
+        return "+0 s" if sign else "0 s"
+    magnitude = abs(seconds)
+    index = next(
+        (i for i, (scale, _) in enumerate(_SI_UNITS) if magnitude >= scale),
+        len(_SI_UNITS) - 1,
+    )
+    while True:
+        scale, unit = _SI_UNITS[index]
+        value = (seconds if sign else magnitude) / scale
+        exponent = math.floor(math.log10(abs(value)))
+        decimals = max(0, SIGNIFICANT - 1 - exponent)
+        text = f"{value:+.{decimals}f}" if sign else f"{value:.{decimals}f}"
+        # 999.96 ns rounds to "1000" ns: step up a unit and format again, so the
+        # figure reads 1 µs rather than a four-digit count of the smaller unit.
+        if abs(float(text)) >= 1000 and index > 0:
+            index -= 1
+            continue
+        break
+    if "." in text:
+        text = text.rstrip("0").rstrip(".")
+    return f"{text} {unit}"
 
 
 def _offset_human(seconds: float | None) -> str:
@@ -152,6 +188,25 @@ def _magnitude_cell(seconds: float | None) -> Markup:
 
 
 app.jinja_env.globals["fmt_magnitude"] = _magnitude_cell
+
+
+def _si_cell(seconds: float | None) -> Markup:
+    """A signed figure below "Use this time server", in SI units. No zero banding:
+    with the unit scaled there is no run of leading zeros left to count."""
+    if seconds is None:
+        return Markup("")
+    return Markup(escape(_si_seconds(seconds)))
+
+
+def _si_magnitude_cell(seconds: float | None) -> Markup:
+    """An unsigned size (a deviation or a peak), in SI units."""
+    if seconds is None:
+        return Markup("")
+    return Markup(escape(_si_seconds(seconds, sign=False)))
+
+
+app.jinja_env.globals["fmt_si"] = _si_cell
+app.jinja_env.globals["fmt_si_magnitude"] = _si_magnitude_cell
 
 
 # Used by the sources table, which formats a dozen offsets per row. NOT named `offset`:

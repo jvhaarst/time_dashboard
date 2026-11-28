@@ -5,7 +5,7 @@ than an error, which is why they are the parts under test.
 """
 
 from app import vm
-from app.main import _offset_human, _seconds_human
+from app.main import _offset_human, _seconds_human, _si_seconds
 
 
 def s(value, **labels):
@@ -157,3 +157,25 @@ def test_offset_cell_bands_and_keeps_the_unit():
     assert '<span class="z0">00</span>' in str(_offset_cell(7.203e-7))
     assert str(_magnitude_cell(None)) == ""
     assert "-" not in str(_magnitude_cell(-7.203e-7))
+
+
+def test_si_seconds_scales_to_the_unit_with_four_significant_figures():
+    """Below "Use this time server" the figures are technical and use SI units."""
+    assert _si_seconds(6.39e-7) == "+639 ns"
+    assert _si_seconds(-1.2e-9) == "-1.2 ns"
+    assert _si_seconds(1.86e-5) == "+18.6 µs"
+    assert _si_seconds(-0.03995) == "-39.95 ms"
+    assert _si_seconds(1.5) == "+1.5 s"
+    assert _si_seconds(4.2e-10) == "+0.42 ns"
+    assert _si_seconds(0) == "+0 s"
+
+
+def test_si_seconds_unsigned_for_magnitudes():
+    assert _si_seconds(-2.5e-6, sign=False) == "2.5 µs"
+    assert _si_seconds(0, sign=False) == "0 s"
+
+
+def test_si_seconds_steps_up_a_unit_when_rounding_reaches_1000():
+    """999.96 ns must read 1 µs, not a four-digit count of nanoseconds."""
+    assert _si_seconds(9.9996e-7) == "+1 µs"
+    assert _si_seconds(-9.99996e-4) == "-1 ms"

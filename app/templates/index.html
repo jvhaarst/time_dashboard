@@ -142,9 +142,9 @@
           <th>{{ s.window }}</th>
           <td class="num">{{ '%.3f'|format(s.availability * 100) ~ '%' if s.availability is not none else '' }}</td>
           <td class="num">{{ '{:,}'.format(s.samples|int) if s.samples is not none else '' }}</td>
-          <td class="num">{{ fmt_offset(s.mean) }}</td>
-          <td class="num">{{ fmt_magnitude(s.sd) }}</td>
-          <td class="num">{{ fmt_magnitude(s.peak) }}</td>
+          <td class="num">{{ fmt_si(s.mean) }}</td>
+          <td class="num">{{ fmt_si_magnitude(s.sd) }}</td>
+          <td class="num">{{ fmt_si_magnitude(s.peak) }}</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -186,9 +186,9 @@
           <td class="num">{{ s.stratum|int if s.stratum is not none else '' }}</td>
           <td class="num">{{ '%.0f'|format(s.poll) if s.poll is not none else '' }}s</td>
           <td class="num">{{ '%.0f'|format(s.reach * 100) if s.reach is not none else '' }}%</td>
-          <td class="num">{{ fmt_offset(s.offset) }}</td>
-          <td class="num">{{ fmt_offset(s.error) }}</td>
-          <td class="num">{{ fmt_offset(s.stddev) }}</td>
+          <td class="num">{{ fmt_si(s.offset) }}</td>
+          <td class="num">{{ fmt_si_magnitude(s.error) }}</td>
+          <td class="num">{{ fmt_si_magnitude(s.stddev) }}</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -279,17 +279,17 @@
         <tr><th>Reference</th>
             <td>{{ reference }}{% if reference_refid %} <span class="dim">(refid {{ reference_refid }})</span>{% endif %}</td>
             <td class="what">PPS is the receiver's pulse-per-second output, the signal that makes stratum 1 worth having.</td></tr>
-        <tr><th>Current offset</th><td class="num" id="offset">{{ fmt_offset(offset_seconds) }}</td>
+        <tr><th>Current offset</th><td class="num" id="offset">{{ fmt_si(offset_seconds) }}</td>
             <td class="what">How far the system clock sat from the reference at the last update.</td></tr>
-        <tr><th>RMS offset</th><td class="num" id="rms">{{ fmt_offset(rms_seconds) }}</td>
+        <tr><th>RMS offset</th><td class="num" id="rms">{{ fmt_si_magnitude(rms_seconds) }}</td>
             <td class="what">The long-run average of that error, which is the honest figure to quote.</td></tr>
-        <tr><th>Root dispersion</th><td class="num">{{ fmt_offset(root_dispersion_seconds) }}</td>
+        <tr><th>Root dispersion</th><td class="num">{{ fmt_si_magnitude(root_dispersion_seconds) }}</td>
             <td class="what">The server's own estimate of its maximum error, and what it advertises to clients.</td></tr>
-        <tr><th>Root delay</th><td class="num">{{ fmt_offset(root_delay_seconds) }}</td>
+        <tr><th>Root delay</th><td class="num">{{ fmt_si_magnitude(root_delay_seconds) }}</td>
             <td class="what">Round-trip delay to the reference. Near zero because the reference is attached, not remote.</td></tr>
-        <tr><th>PPS offset</th><td class="num">{{ fmt_offset(pps_seconds) }}</td>
+        <tr><th>PPS offset</th><td class="num">{{ fmt_si(pps_seconds) }}</td>
             <td class="what">The pulse itself. This is the number that sets the server's accuracy.</td></tr>
-        <tr><th>NMEA offset</th><td class="num">{{ fmt_offset(gps_seconds) }}</td>
+        <tr><th>NMEA offset</th><td class="num">{{ fmt_si(gps_seconds) }}</td>
             <td class="what">The serial time message, tens of milliseconds out by nature. It only has to name the right second; the pulse does the rest.</td></tr>
         <tr><th>Frequency</th><td class="num">{{ '%.3f'|format(frequency_ppm) if frequency_ppm is not none else 'unknown' }} ppm</td>
             <td class="what">How fast the oscillator runs on its own. A constant value here is a healthy crystal.</td></tr>
@@ -496,6 +496,29 @@
     return text + " s";
   }
 
+  // The SI form the server uses from "Offset history" down (_si_seconds): scaled to
+  // s, ms, µs or ns, four significant figures. Takes seconds, not ms.
+  var SI_UNITS = [[1, "s"], [1e-3, "ms"], [1e-6, "µs"], [1e-9, "ns"]];
+  function fmtSI(seconds, signed) {
+    if (seconds === 0) { return signed ? "+0 s" : "0 s"; }
+    var magnitude = Math.abs(seconds);
+    var i = 0;
+    while (i < SI_UNITS.length - 1 && magnitude < SI_UNITS[i][0]) { i++; }
+    var text;
+    for (;;) {
+      var value = magnitude / SI_UNITS[i][0];
+      var exponent = Math.floor(Math.log(value) / Math.LN10);
+      text = value.toFixed(Math.max(0, 3 - exponent));
+      // 999.96 ns rounds to 1000: step up a unit, as the server does.
+      if (parseFloat(text) >= 1000 && i > 0) { i--; continue; }
+      break;
+    }
+    if (text.indexOf(".") >= 0) {
+      text = text.replace(/0+$/, "").replace(/\.$/, "");
+    }
+    return (signed ? (seconds >= 0 ? "+" : "-") : "") + text + " " + SI_UNITS[i][1];
+  }
+
   function measure() {
     var best = null;
     var chain = Promise.resolve();
@@ -542,9 +565,11 @@
           var node = document.getElementById(id);
           if (node && text) { node.innerHTML = markZeros(text); }
         };
-        set("offset", s.offset);
+        // The tile above "Use this time server" keeps decimal seconds; the table
+        // below it speaks SI, so it is formatted here from the raw seconds.
         set("tile-offset", s.offset);
-        set("rms", s.rms_offset);
+        if (s.offset_seconds != null) { set("offset", fmtSI(s.offset_seconds, true)); }
+        if (s.rms_seconds != null) { set("rms", fmtSI(s.rms_seconds, false)); }
         if (s.sats_used != null && s.sats_seen != null) {
           set("sats", s.sats_used + " used of " + s.sats_seen + " seen");
         }
